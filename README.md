@@ -59,6 +59,7 @@ Logo behavior:
 - `LOGO_URL` is optional.
 - If `LOGO_URL` is empty, the renderer checks `public/logo.png`.
 - If no logo exists, it uses fallback text `GOSTIVARPRESS`.
+- The included GPRESS logo is stored as `public/logo.png`.
 
 ## Publishing Safety
 

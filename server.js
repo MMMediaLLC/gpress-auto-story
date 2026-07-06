@@ -195,9 +195,9 @@ async function renderCardPng(item) {
   const outputPath = path.join(CARDS_DIR, filename);
   const imageUrl = `${PUBLIC_BASE_URL}/cards/${filename}`;
 
-  const background = await makeBackground(item.image);
-  const overlays = [{ input: Buffer.from(makeOverlaySvg(item)) }];
   const logo = await loadLogoComposite();
+  const background = await makeBackground(item.image);
+  const overlays = [{ input: Buffer.from(makeOverlaySvg(item, Boolean(logo))) }];
   if (logo) overlays.push(logo);
 
   await background
@@ -242,54 +242,71 @@ async function makeBackground(imageUrl) {
   `)).resize(1080, 1920);
 }
 
-function makeOverlaySvg(item) {
+function makeOverlaySvg(item, hasLogo) {
   const safeTitle = escapeXml(item.title);
   const safeCategory = escapeXml((item.category || "Вести").toUpperCase());
   const safeDate = escapeXml(formatDate(item.pubDate));
   const titleLayout = layoutTitle(item.title);
   const lineHeight = Math.round(titleLayout.fontSize * 1.08);
-  const titleY = 1324;
+  const titleBlockHeight = (titleLayout.lines.length - 1) * lineHeight + titleLayout.fontSize;
+  const titleY = Math.max(1260, 1508 - titleBlockHeight);
+  const categoryWidth = badgeWidth(safeCategory);
+  const categoryX = 86;
 
   const titleLines = titleLayout.lines.map((line, index) => {
     const y = titleY + index * lineHeight;
-    return `<text x="86" y="${y}" class="title" font-size="${titleLayout.fontSize}">${escapeXml(line)}</text>`;
+    return `<text x="128" y="${y}" class="title" font-size="${titleLayout.fontSize}">${escapeXml(line)}</text>`;
   }).join("");
 
   return `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="topShade" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(0,0,0,0.54)"/>
+        <stop offset="0%" stop-color="rgba(3,10,24,0.46)"/>
+        <stop offset="58%" stop-color="rgba(3,10,24,0.16)"/>
         <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
       </linearGradient>
       <linearGradient id="bottomShade" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(4,8,18,0)"/>
-        <stop offset="25%" stop-color="rgba(4,8,18,0.46)"/>
-        <stop offset="62%" stop-color="rgba(4,8,18,0.86)"/>
-        <stop offset="100%" stop-color="rgba(4,8,18,0.96)"/>
+        <stop offset="0%" stop-color="rgba(255,255,255,0.00)"/>
+        <stop offset="26%" stop-color="rgba(255,255,255,0.66)"/>
+        <stop offset="66%" stop-color="rgba(255,255,255,0.94)"/>
+        <stop offset="100%" stop-color="rgba(255,255,255,0.98)"/>
       </linearGradient>
+      <radialGradient id="spot" cx="50%" cy="72%" r="58%">
+        <stop offset="0%" stop-color="rgba(114,133,244,0.14)"/>
+        <stop offset="100%" stop-color="rgba(114,133,244,0)"/>
+      </radialGradient>
       <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.48"/>
+        <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.22"/>
+      </filter>
+      <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+        <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#101828" flood-opacity="0.16"/>
       </filter>
       <style>
         .brand { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
         .meta { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .date { font-family: Arial, sans-serif; font-weight: 800; letter-spacing: 0; fill: rgba(255,255,255,0.88); }
-        .title { font-family: Arial, "DejaVu Sans", sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; filter: url(#shadow); }
-        .footer { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
+        .date { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #344054; }
+        .title { font-family: Arial, "DejaVu Sans", sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; filter: url(#softShadow); }
+        .footer { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; }
+        .footerLight { font-family: Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #475467; }
+        .footerAccent { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
       </style>
     </defs>
-    <rect width="1080" height="430" fill="url(#topShade)"/>
+    <rect width="1080" height="390" fill="url(#topShade)"/>
     <rect y="820" width="1080" height="1100" fill="url(#bottomShade)"/>
-    <rect x="70" y="88" width="8" height="62" rx="4" fill="#7285f4"/>
-    <text x="96" y="134" class="brand" font-size="38" filter="url(#shadow)">GOSTIVARPRESS</text>
-    <rect x="${badgeX(safeCategory)}" y="92" width="${badgeWidth(safeCategory)}" height="54" rx="9" fill="#7285f4"/>
-    <text x="${badgeX(safeCategory) + 20}" y="128" class="meta" font-size="26">${safeCategory}</text>
-    <rect x="70" y="176" width="126" height="8" rx="4" fill="#7285f4"/>
-    <text x="86" y="1272" class="date" font-size="34">${safeDate}</text>
-    ${titleLines || `<text x="86" y="${titleY}" class="title" font-size="68">${safeTitle}</text>`}
-    <circle cx="112" cy="1786" r="24" fill="none" stroke="#7285f4" stroke-width="6"/>
-    <rect x="126" y="1776" width="34" height="6" rx="3" fill="#7285f4" transform="rotate(-35 126 1776)"/>
-    <text x="174" y="1798" class="footer" font-size="36">gostivarpress.mk</text>
+    <rect y="820" width="1080" height="1100" fill="url(#spot)"/>
+    <rect x="68" y="74" width="514" height="118" rx="20" fill="rgba(16,24,40,0.50)"/>
+    <rect x="82" y="96" width="7" height="74" rx="4" fill="#7285f4"/>
+    ${hasLogo ? "" : `<text x="112" y="144" class="brand" font-size="42" filter="url(#shadow)">GOSTIVARPRESS</text>`}
+    <rect x="112" y="210" width="130" height="8" rx="4" fill="#7285f4"/>
+    <rect x="${categoryX}" y="1040" width="${categoryWidth}" height="58" rx="10" fill="#7285f4" opacity="0.98"/>
+    <text x="${categoryX + 20}" y="1078" class="meta" font-size="27">${safeCategory}</text>
+    <text x="${categoryX + categoryWidth + 28}" y="1078" class="date" font-size="31">${safeDate}</text>
+    <rect x="86" y="${titleY - 58}" width="7" height="${Math.max(176, titleBlockHeight + 24)}" rx="4" fill="#7285f4"/>
+    ${titleLines || `<text x="540" y="${titleY}" class="title" font-size="68" text-anchor="middle">${safeTitle}</text>`}
+    <circle cx="112" cy="1780" r="24" fill="none" stroke="#7285f4" stroke-width="6"/>
+    <rect x="126" y="1770" width="34" height="6" rx="3" fill="#7285f4" transform="rotate(-35 126 1770)"/>
+    <text x="174" y="1794" class="footerLight" font-size="34">Повеќе на</text>
+    <text x="362" y="1794" class="footerAccent" font-size="34">gostivarpress.mk</text>
   </svg>`;
 }
 
@@ -305,14 +322,15 @@ async function loadLogoComposite() {
     if (!buffer) return null;
 
     const input = await sharp(buffer)
-      .resize({ width: 380, height: 90, fit: "inside", withoutEnlargement: true })
+      .resize({ width: 540, height: 120, fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();
+    const meta = await sharp(input).metadata();
 
     return {
       input,
-      left: 96,
-      top: 82
+      left: 112,
+      top: Math.round(98 + (72 - Math.min(meta.height || 72, 72)) / 2)
     };
   } catch (error) {
     logError("logo", error);
@@ -333,9 +351,9 @@ async function fetchBuffer(url) {
 function layoutTitle(title) {
   const clean = String(title || "").trim();
   const length = clean.length;
-  const fontSize = length <= 55 ? 82 : length <= 95 ? 70 : length <= 140 ? 60 : 52;
-  const maxChars = length <= 55 ? 20 : length <= 95 ? 24 : length <= 140 ? 28 : 32;
-  const maxLines = 7;
+  const fontSize = length <= 55 ? 82 : length <= 95 ? 72 : length <= 140 ? 62 : 54;
+  const maxChars = length <= 55 ? 18 : length <= 95 ? 22 : length <= 140 ? 26 : 30;
+  const maxLines = 6;
   const words = clean.split(/\s+/);
   const lines = [];
   let current = "";
