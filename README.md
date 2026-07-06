@@ -1,86 +1,123 @@
-# GPress Story Generator
+# GPress Story V3
 
-Production-safe Node.js 20 preview service for Gostivarpress story cards.
+Node.js 20 service for Gostivarpress RSS story previews, server-side PNG generation, and optional Instagram Story publishing.
 
-This version uses only built-in Node.js modules. It does not require Express, Puppeteer, Playwright, Sharp, a database, login, admin panel, or social media credentials.
-
-## Local Start
-
-```bash
-npm start
-```
-
-Default runtime:
+This service runs on:
 
 ```text
 HOST=127.0.0.1
 PORT=3010
-RSS_URL=https://gostivarpress.mk/feed/
 ```
 
-Optional logo:
+It does not require Docker, Puppeteer, Playwright, a database, or system package changes.
+
+## Local Start
 
 ```bash
-LOGO_URL=https://example.com/logo.png npm start
+npm install
+npm start
 ```
 
 ## Endpoints
 
 ```text
 GET /health
+GET /
+GET /api/latest
+GET /story?i=0
+GET /render?i=0
+GET /cards/<filename>.png
+GET /publish?i=0&dry=1
+POST /publish?i=0
 ```
 
-Returns:
+`GET /render?i=0` generates a real `1080x1920` PNG with `sharp`, saves it to:
+
+```text
+/opt/gpress-story/public/cards/
+```
+
+and returns:
 
 ```json
-{ "ok": true, "service": "gpress-story" }
+{ "ok": true, "imageUrl": "...", "title": "...", "link": "..." }
 ```
+
+## Environment Variables
+
+```env
+RSS_URL=https://gostivarpress.mk/feed/
+PUBLIC_BASE_URL=https://story.gostivarpress.mk
+LOGO_URL=
+IG_USER_ID=
+IG_ACCESS_TOKEN=
+AUTO_PUBLISH_ENABLED=false
+```
+
+Logo behavior:
+
+- `LOGO_URL` is optional.
+- If `LOGO_URL` is empty, the renderer checks `public/logo.png`.
+- If no logo exists, it uses fallback text `GOSTIVARPRESS`.
+
+## Publishing Safety
+
+Automatic publishing is disabled by default.
+
+```env
+AUTO_PUBLISH_ENABLED=false
+```
+
+Dry run:
+
+```bash
+curl "http://127.0.0.1:3010/publish?i=0&dry=1"
+```
+
+Manual publish:
+
+```bash
+curl -X POST "http://127.0.0.1:3010/publish?i=0"
+```
+
+If `IG_USER_ID` or `IG_ACCESS_TOKEN` are missing, publish returns a clear JSON error and does not crash.
+
+Published items are tracked in:
 
 ```text
-GET /
+/opt/gpress-story/data/published.json
 ```
 
-Shows the latest RSS posts with `Preview Story` buttons.
+The service uses the RSS `guid` or `link` as the duplicate-protection identifier.
 
-```text
-GET /api/latest
+## Auto Publish
+
+When enabled:
+
+```env
+AUTO_PUBLISH_ENABLED=true
 ```
 
-Fetches and parses the latest 10 RSS posts. The response includes:
+the service checks RSS every 10 minutes. If a new post is not in `published.json`, it generates the PNG and publishes it as an Instagram Story.
 
-- `title`
-- `link`
-- `pubDate`
-- `category`
-- `image`
-
-RSS is cached in memory for 5 minutes.
-
-```text
-GET /story
-GET /story?i=0
-```
-
-Shows a responsive 9:16 story preview card for the selected RSS item.
+Errors are logged, but the service continues running.
 
 ## Server Deployment
 
-The existing systemd service starts:
-
-```text
-WorkingDirectory=/opt/gpress-story
-ExecStart=/usr/bin/node server.js
-```
-
-Deploy these files into `/opt/gpress-story`:
-
-- `server.js`
-- `package.json`
-- `README.md`
-
-Then restart and check the existing service:
+Use only the existing application directory and existing systemd service.
 
 ```bash
+cd /opt/gpress-story
+cp server.js server.js.backup.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp package.json package.json.backup.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+cp README.md README.md.backup.$(date +%Y%m%d-%H%M%S) 2>/dev/null || true
+```
+
+Copy the new files into `/opt/gpress-story`, then run:
+
+```bash
+npm install --omit=dev
+node --check server.js
 systemctl restart gpress-story
 systemctl status gpress-story --no-pager
 ```
@@ -89,4 +126,10 @@ Health check:
 
 ```bash
 curl http://127.0.0.1:3010/health
+```
+
+Render test:
+
+```bash
+curl "http://127.0.0.1:3010/render?i=0"
 ```
