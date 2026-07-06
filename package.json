@@ -1,29 +1,9 @@
 {
-  "name": "gpress-story-publisher",
+  "name": "gpress-story",
   "version": "1.0.0",
-  "description": "Automatically create and publish Instagram Story cards for Gostivarpress.mk posts.",
-  "type": "module",
-  "engines": {
-    "node": ">=20"
-  },
+  "main": "server.js",
   "scripts": {
-    "build": "tsc",
-    "fetch": "tsx src/index.ts fetch",
-    "generate": "tsx src/index.ts generate",
-    "generate:test": "tsx src/index.ts generate:test",
-    "generate:samples": "tsx src/index.ts generate:samples",
-    "publish-latest": "tsx src/index.ts publish-latest",
-    "publish": "tsx src/index.ts publish",
-    "cleanup": "tsx src/index.ts cleanup"
+    "start": "node server.js"
   },
-  "dependencies": {
-    "dotenv": "^16.4.7",
-    "playwright": "^1.49.1",
-    "sharp": "^0.33.5"
-  },
-  "devDependencies": {
-    "@types/node": "^22.10.2",
-    "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
-  }
+  "dependencies": {}
 }

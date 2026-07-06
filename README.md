@@ -1,117 +1,92 @@
-# GPress Story Publisher
+# GPress Story Generator
 
-Node.js/TypeScript CLI that fetches new Gostivarpress.mk WordPress posts, renders 1080x1920 Instagram Story JPG cards, publishes them through the Instagram Graph API, and tracks duplicate publishing locally.
+Production-safe Node.js 20 preview service for Gostivarpress story cards.
 
-## Setup
+This version uses only built-in Node.js modules. It does not require Express, Puppeteer, Playwright, Sharp, a database, login, admin panel, or social media credentials.
 
-1. Install Node.js 20+.
-2. Install dependencies:
-
-```bash
-npm install
-```
-
-3. Install Playwright browsers:
+## Local Start
 
 ```bash
-npx playwright install chromium
+npm start
 ```
 
-4. Copy `.env.example` to `.env` and fill in:
-
-```bash
-IG_USER_ID=...
-IG_ACCESS_TOKEN=...
-SITE_URL=https://gostivarpress.mk
-PUBLIC_STORIES_BASE_URL=https://your-public-domain.example/stories
-```
-
-5. Add the transparent white GPRESS logo at:
+Default runtime:
 
 ```text
-assets/gpress-logo-white.png
+HOST=127.0.0.1
+PORT=3010
+RSS_URL=https://gostivarpress.mk/feed/
 ```
 
-If the logo file is missing, generated cards will fall back to a text GPRESS mark.
+Optional logo:
 
-## Public Story Images
+```bash
+LOGO_URL=https://example.com/logo.png npm start
+```
 
-Instagram must be able to download `image_url` from the public internet. This app writes generated files to `PUBLIC_STORIES_DIR`, defaulting to `./public/stories`, and builds public URLs using `PUBLIC_STORIES_BASE_URL`.
-
-Deploy or serve that folder from your web server so a file like:
+## Endpoints
 
 ```text
-./public/stories/story-123.jpg
+GET /health
 ```
 
-is reachable at:
+Returns:
+
+```json
+{ "ok": true, "service": "gpress-story" }
+```
 
 ```text
-https://your-public-domain.example/stories/story-123.jpg
+GET /
 ```
 
-Never put `IG_ACCESS_TOKEN` in browser/frontend code. This app only reads it server-side from `.env`.
-
-## Commands
-
-Fetch the latest WordPress posts:
-
-```bash
-npm run fetch
-```
-
-Generate one story image:
-
-```bash
-npm run generate -- --postId=POST_ID
-```
-
-Publish the newest unpublished post:
-
-```bash
-npm run publish-latest
-```
-
-Publish one post:
-
-```bash
-npm run publish -- --postId=POST_ID
-```
-
-Delete generated story JPG files older than 48 hours:
-
-```bash
-npm run cleanup
-```
-
-Preview cleanup without deleting files:
-
-```bash
-npm run cleanup -- --hours=48 --dry-run
-```
-
-Suggested daily cron:
-
-```bash
-0 3 * * * cd /path/to/gpress-auto-story && npm run cleanup
-```
-
-## Tracking
-
-Published posts are stored in `DATA_FILE`, defaulting to:
+Shows the latest RSS posts with `Preview Story` buttons.
 
 ```text
-./data/published.json
+GET /api/latest
 ```
 
-Each record includes:
+Fetches and parses the latest 10 RSS posts. The response includes:
 
-- `post_id`
-- `post_link`
-- `story_image_url`
-- `instagram_container_id`
-- `instagram_story_id`
-- `status`
-- `published_at`
+- `title`
+- `link`
+- `pubDate`
+- `category`
+- `image`
 
-Posts with `status: "published"` are skipped by publish commands for duplicate protection.
+RSS is cached in memory for 5 minutes.
+
+```text
+GET /story
+GET /story?i=0
+```
+
+Shows a responsive 9:16 story preview card for the selected RSS item.
+
+## Server Deployment
+
+The existing systemd service starts:
+
+```text
+WorkingDirectory=/opt/gpress-story
+ExecStart=/usr/bin/node server.js
+```
+
+Deploy these files into `/opt/gpress-story`:
+
+- `server.js`
+- `package.json`
+- `README.md`
+
+Then restart and check the existing service:
+
+```bash
+systemctl restart gpress-story
+systemctl status gpress-story --no-pager
+```
+
+Health check:
+
+```bash
+curl http://127.0.0.1:3010/health
+```
