@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+data/
+public/stories/
+work/
+outputs/
+.agents/
+.codex/
+*.log
