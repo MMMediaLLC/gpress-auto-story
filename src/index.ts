@@ -1,4 +1,5 @@
 import { getConfig, requireInstagramConfig } from "./config.js";
+import { cleanupOldStories } from "./cleanup.js";
 import { publishStoryToInstagram } from "./instagram.js";
 import { generateSampleCards } from "./sampleCards.js";
 import { PublishedStore } from "./store.js";
@@ -29,6 +30,9 @@ async function main(): Promise<void> {
         break;
       case "publish":
         await publishCommand();
+        break;
+      case "cleanup":
+        await cleanupCommand();
         break;
       default:
         printHelp();
@@ -95,6 +99,24 @@ async function publishCommand(): Promise<void> {
 
   const post = await fetchPostById(config, postId);
   await publishPost(post);
+}
+
+async function cleanupCommand(): Promise<void> {
+  const hours = Number(readArg("hours") || "48");
+  const dryRun = hasFlag("dry-run");
+  const result = await cleanupOldStories({
+    storiesDir: config.publicStoriesDir,
+    olderThanHours: hours,
+    dryRun
+  });
+
+  for (const filePath of result.candidates) {
+    console.log(`[${dryRun ? "would-delete" : "deleted"}] ${filePath}`);
+  }
+
+  console.log(
+    `[cleanup] scanned=${result.scanned} ${dryRun ? "wouldDelete" : "deleted"}=${dryRun ? result.candidates.length : result.deleted} skipped=${result.skipped} olderThanHours=${hours}`
+  );
 }
 
 async function firstUnpublished(posts: StoryPost[]): Promise<StoryPost | undefined> {
@@ -179,6 +201,10 @@ function readArg(name: string): string | undefined {
   return index >= 0 ? args[index + 1] : undefined;
 }
 
+function hasFlag(name: string): boolean {
+  return process.argv.slice(2).includes(`--${name}`);
+}
+
 function printHelp(): void {
   console.log(`GPress Story Publisher
 
@@ -189,6 +215,8 @@ Commands:
   npm run generate:samples
   npm run publish-latest
   npm run publish -- --postId=POST_ID
+  npm run cleanup
+  npm run cleanup -- --hours=48 --dry-run
 `);
 }
 

@@ -13,7 +13,8 @@
     "generate:test": "tsx src/index.ts generate:test",
     "generate:samples": "tsx src/index.ts generate:samples",
     "publish-latest": "tsx src/index.ts publish-latest",
-    "publish": "tsx src/index.ts publish"
+    "publish": "tsx src/index.ts publish",
+    "cleanup": "tsx src/index.ts cleanup"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

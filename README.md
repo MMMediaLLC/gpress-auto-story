@@ -78,6 +78,24 @@ Publish one post:
 npm run publish -- --postId=POST_ID
 ```
 
+Delete generated story JPG files older than 48 hours:
+
+```bash
+npm run cleanup
+```
+
+Preview cleanup without deleting files:
+
+```bash
+npm run cleanup -- --hours=48 --dry-run
+```
+
+Suggested daily cron:
+
+```bash
+0 3 * * * cd /path/to/gpress-auto-story && npm run cleanup
+```
+
 ## Tracking
 
 Published posts are stored in `DATA_FILE`, defaulting to:
