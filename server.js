@@ -3,8 +3,6 @@ const fs = require("node:fs/promises");
 const fss = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const sharp = require("sharp");
-const opentype = require("opentype.js");
 const { chromium } = require("playwright");
 const { URL } = require("node:url");
 
@@ -28,9 +26,6 @@ const PUBLISHED_FILE = path.join(DATA_DIR, "published.json");
 const LOCAL_LOGO_PATH = path.join(PUBLIC_DIR, "logo.png");
 const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Bold.ttf");
-const SVG_FONT_FACE = loadSvgFontFace();
-const VECTOR_FONT_REGULAR = loadOpenTypeFont(FONT_REGULAR_PATH);
-const VECTOR_FONT_BOLD = loadOpenTypeFont(FONT_BOLD_PATH);
 
 let feedCache = {
   fetchedAt: 0,

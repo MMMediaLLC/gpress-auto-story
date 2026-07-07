@@ -6,8 +6,6 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "opentype.js": "^2.0.0",
-    "playwright": "^1.61.1",
-    "sharp": "^0.33.5"
+    "playwright": "^1.61.1"
   }
 }
