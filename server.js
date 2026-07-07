@@ -5,6 +5,7 @@ const path = require("node:path");
 const crypto = require("node:crypto");
 const sharp = require("sharp");
 const opentype = require("opentype.js");
+const { chromium } = require("playwright");
 const { URL } = require("node:url");
 
 const HOST = process.env.HOST || "127.0.0.1";
@@ -17,7 +18,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v9";
+const CARD_DESIGN_VERSION = "v10";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -202,15 +203,23 @@ async function renderCardPng(item) {
   const outputPath = path.join(CARDS_DIR, filename);
   const imageUrl = `${PUBLIC_BASE_URL}/cards/${filename}`;
 
-  const logo = await loadLogoComposite();
-  const background = await makeBackground(item.image);
-  const overlays = [{ input: Buffer.from(makeOverlaySvg(item, Boolean(logo))) }];
-  if (logo) overlays.push(logo);
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--no-sandbox", "--disable-setuid-sandbox"]
+  });
 
-  await background
-    .composite(overlays)
-    .png({ compressionLevel: 9, quality: 95 })
-    .toFile(outputPath);
+  try {
+    const context = await browser.newContext({
+      viewport: { width: 540, height: 960 },
+      deviceScaleFactor: 2
+    });
+    const page = await context.newPage();
+    await page.setContent(renderStoryCardHtml(item), { waitUntil: "networkidle" });
+    await page.locator(".story").screenshot({ path: outputPath, type: "png" });
+    await context.close();
+  } finally {
+    await browser.close();
+  }
 
   logInfo("render", `${filename} ${item.title}`);
   return { outputPath, imageUrl };
@@ -690,9 +699,15 @@ function renderHomePage(items, published) {
 
 function renderStoryPreview(item) {
   if (!item) return renderNotFoundPage("Нема објава за избраниот индекс.");
-  const backgroundStyle = item.image
-    ? `background-image: linear-gradient(180deg, rgba(5,8,18,0.42) 0%, rgba(5,8,18,0.18) 35%, rgba(5,8,18,0.88) 100%), url('${cssUrl(item.image)}');`
-    : `background-image: linear-gradient(150deg, #111827 0%, #7285f4 52%, #060912 100%);`;
+  return renderStoryCardHtml(item);
+}
+
+function renderStoryCardHtml(item) {
+  const logoSrc = assetDataUri(LOCAL_LOGO_PATH, "image/png");
+  const background = item.image
+    ? `url('${cssUrl(item.image)}')`
+    : "linear-gradient(150deg, #111827 0%, #7285f4 52%, #060912 100%)";
+  const category = item.category || "Вести";
 
   return `<!doctype html>
 <html lang="mk">
@@ -701,43 +716,65 @@ function renderStoryPreview(item) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(item.title)} · Story Preview</title>
   <style>
-    :root { --accent: #7285f4; }
+    ${localFontCss()}
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 22px; background: #070b16; font-family: Arial, sans-serif; }
-    .story { width: min(100vw - 44px, 540px); aspect-ratio: 9 / 16; position: relative; overflow: hidden; border-radius: 24px; color: #fff; background-size: cover; background-position: center; box-shadow: 0 28px 80px rgba(0,0,0,0.42); ${backgroundStyle} }
-    .inner { position: absolute; inset: 0; display: flex; flex-direction: column; padding: 7% 7% 7.2%; }
-    .top { display: flex; justify-content: space-between; align-items: center; gap: 18px; font-weight: 900; text-shadow: 0 5px 20px rgba(0,0,0,.44); }
-    .brand { display: flex; align-items: center; gap: 12px; font-size: clamp(18px, 4.2vw, 25px); }
-    .bar { width: 8px; height: 38px; border-radius: 999px; background: var(--accent); }
-    .pill { padding: 9px 12px; border-radius: 9px; background: var(--accent); font-weight: 900; text-transform: uppercase; }
-    .line { width: 90px; height: 7px; background: var(--accent); border-radius: 999px; margin-top: 24px; }
-    .spacer { flex: 1; }
-    .date { margin-bottom: 15px; font-size: clamp(14px, 3vw, 20px); font-weight: 800; color: rgba(255,255,255,.88); }
-    h1 { margin: 0; font-size: clamp(34px, 8.6vw, 70px); line-height: 1.04; font-weight: 900; letter-spacing: 0; text-wrap: balance; text-shadow: 0 8px 32px rgba(0,0,0,.55); }
-    .footer { display: flex; align-items: center; gap: 12px; margin-top: 30px; font-size: clamp(16px, 3.8vw, 25px); font-weight: 900; }
-    .dot { width: 34px; height: 34px; border-radius: 50%; border: 4px solid var(--accent); }
-    .nav { position: fixed; left: 18px; bottom: 18px; display: flex; gap: 10px; }
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101318; font-family: "GPressSans", Arial, sans-serif; }
+    .story { width: 540px; aspect-ratio: 9 / 16; position: relative; overflow: hidden; background-image: ${background}; background-size: cover; background-position: center; color: #071121; box-shadow: 0 30px 90px rgba(0,0,0,.45); }
+    .story::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,10,24,.46) 0%, rgba(5,10,24,.08) 34%, rgba(255,255,255,0) 48%), linear-gradient(180deg, rgba(255,255,255,0) 38%, rgba(255,255,255,.76) 60%, rgba(255,255,255,.98) 100%); }
+    .logo { position: absolute; top: 58px; left: 42px; width: 210px; height: auto; z-index: 2; filter: drop-shadow(0 8px 20px rgba(0,0,0,.25)); }
+    .content { position: absolute; left: 36px; right: 34px; bottom: 38px; z-index: 2; }
+    .meta { display: flex; align-items: center; gap: 18px; margin-bottom: 52px; }
+    .badge { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 16px; border-radius: 7px; background: #7285f4; color: #fff; font-size: 18px; line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
+    .date { color: #172033; font-size: 19px; font-weight: 900; line-height: 1; }
+    .headline-row { display: grid; grid-template-columns: 4px minmax(0, 1fr); column-gap: 14px; align-items: stretch; margin-bottom: 124px; }
+    .accent { width: 4px; border-radius: 999px; background: #7285f4; }
+    h1 { margin: -5px 0 0; max-width: 462px; color: #071121; font-size: ${storyTitleFontSize(item.title)}px; line-height: 1.06; font-weight: 900; letter-spacing: 0; text-wrap: balance; }
+    .footer { display: flex; align-items: center; gap: 16px; color: #344054; font-size: 20px; font-weight: 900; line-height: 1; }
+    .link-icon { width: 28px; height: 28px; border: 4px solid #7285f4; border-radius: 50%; position: relative; flex: 0 0 auto; }
+    .link-icon::after { content: ""; position: absolute; width: 19px; height: 4px; border-radius: 999px; background: #7285f4; right: -13px; top: 3px; transform: rotate(-35deg); }
+    .footer strong { color: #7285f4; font-weight: 900; }
+    .nav { position: fixed; left: 18px; bottom: 18px; display: flex; gap: 10px; z-index: 20; }
     .nav a { color: #fff; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.20); border-radius: 10px; padding: 10px 12px; text-decoration: none; font-weight: 800; }
+    @media (max-width: 620px) { .story { width: min(100vw, 540px); } }
   </style>
 </head>
 <body>
   <main class="story">
-    <section class="inner">
-      <header>
-        <div class="top"><div class="brand"><span class="bar"></span><span>GOSTIVARPRESS</span></div><div class="pill">${escapeHtml(item.category || "Вести")}</div></div>
-        <div class="line"></div>
-      </header>
-      <div class="spacer"></div>
-      <div class="date">${escapeHtml(formatDate(item.pubDate))}</div>
-      <h1>${escapeHtml(item.title)}</h1>
-      <footer class="footer"><span class="dot"></span><span>gostivarpress.mk</span></footer>
+    ${logoSrc ? `<img class="logo" src="${logoSrc}" alt="GPress">` : `<div class="logo" style="color:#fff;font-size:34px;font-weight:900">GPRESS</div>`}
+    <section class="content">
+      <div class="meta"><span class="badge">${escapeHtml(category)}</span><span class="date">${escapeHtml(formatDate(item.pubDate))}</span></div>
+      <div class="headline-row"><span class="accent"></span><h1>${escapeHtml(item.title)}</h1></div>
+      <footer class="footer"><span class="link-icon"></span><span>Повеќе на <strong>gostivarpress.mk</strong></span></footer>
     </section>
   </main>
-  <nav class="nav"><a href="/">Latest</a><a href="/render?i=0">Generate PNG</a></nav>
 </body>
 </html>`;
 }
 
+function storyTitleFontSize(title) {
+  const length = String(title || "").trim().length;
+  if (length <= 55) return 45;
+  if (length <= 95) return 41;
+  if (length <= 140) return 37;
+  return 33;
+}
+
+function localFontCss() {
+  const regular = assetDataUri(FONT_REGULAR_PATH, "font/ttf");
+  const bold = assetDataUri(FONT_BOLD_PATH, "font/ttf");
+  if (!regular || !bold) return "";
+  return `@font-face { font-family: "GPressSans"; src: url("${regular}") format("truetype"); font-weight: 700; font-style: normal; font-display: block; }
+@font-face { font-family: "GPressSans"; src: url("${bold}") format("truetype"); font-weight: 800 900; font-style: normal; font-display: block; }`;
+}
+
+function assetDataUri(filePath, mimeType) {
+  try {
+    if (!fss.existsSync(filePath)) return "";
+    return `data:${mimeType};base64,${fss.readFileSync(filePath).toString("base64")}`;
+  } catch {
+    return "";
+  }
+}
 function renderNotFoundPage(message = "Not found") {
   return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Not found</title></head><body style="font-family:Arial,sans-serif;padding:32px"><h1>${escapeHtml(message)}</h1><p><a href="/">Назад</a></p></body></html>`;
 }
