@@ -9,3 +9,4 @@ outputs/
 .agents/
 .codex/
 *.log
+.ms-playwright/
