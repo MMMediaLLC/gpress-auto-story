@@ -467,11 +467,24 @@ function renderStoryCardHtml(item) {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(item.title)} · Story Preview</title>
+  <script>
+    (function () {
+      function fit() {
+        var w = document.documentElement.clientWidth;
+        var h = document.documentElement.clientHeight;
+        var scale = Math.min(1, w / 540, h / 960);
+        document.documentElement.style.setProperty("--fit", scale);
+      }
+      fit();
+      window.addEventListener("resize", fit);
+    })();
+  </script>
   <style>
     ${localFontCss()}
     * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #101318; font-family: "GPressSans", Arial, sans-serif; }
-    .story { width: 540px; aspect-ratio: 9 / 16; position: relative; overflow: hidden; background-image: ${background}; background-size: cover; background-position: center; color: #071121; box-shadow: 0 30px 90px rgba(0,0,0,.45); }
+    body { margin: 0; min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; background: #101318; font-family: "GPressSans", Arial, sans-serif; }
+    .stage { width: calc(540px * var(--fit, 1)); height: calc(960px * var(--fit, 1)); }
+    .story { width: 540px; height: 960px; position: relative; overflow: hidden; background-image: ${background}; background-size: cover; background-position: center; color: #071121; box-shadow: 0 30px 90px rgba(0,0,0,.45); transform: scale(var(--fit, 1)); transform-origin: top left; }
     .story::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,10,24,.46) 0%, rgba(5,10,24,.08) 34%, rgba(255,255,255,0) 48%), linear-gradient(180deg, rgba(255,255,255,0) 38%, rgba(255,255,255,.76) 60%, rgba(255,255,255,.98) 100%); }
     .logo { position: absolute; top: 58px; left: 42px; width: 210px; height: auto; z-index: 2; filter: drop-shadow(0 8px 20px rgba(0,0,0,.25)); }
     .content { position: absolute; left: 36px; right: 34px; bottom: 38px; z-index: 2; }
@@ -487,18 +500,19 @@ function renderStoryCardHtml(item) {
     .footer strong { color: #7285f4; font-weight: 900; }
     .nav { position: fixed; left: 18px; bottom: 18px; display: flex; gap: 10px; z-index: 20; }
     .nav a { color: #fff; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.20); border-radius: 10px; padding: 10px 12px; text-decoration: none; font-weight: 800; }
-    @media (max-width: 620px) { .story { width: min(100vw, 540px); } }
   </style>
 </head>
 <body>
-  <main class="story">
-    ${logoSrc ? `<img class="logo" src="${logoSrc}" alt="GPress">` : `<div class="logo" style="color:#fff;font-size:34px;font-weight:900">GPRESS</div>`}
-    <section class="content">
-      <div class="meta"><span class="badge">${escapeHtml(category)}</span><span class="date">${escapeHtml(formatDate(item.pubDate))}</span></div>
-      <div class="headline-row"><span class="accent"></span><h1>${escapeHtml(item.title)}</h1></div>
-      <footer class="footer"><span class="link-icon"></span><span>Повеќе на <strong>gostivarpress.mk</strong></span></footer>
-    </section>
-  </main>
+  <div class="stage">
+    <main class="story">
+      ${logoSrc ? `<img class="logo" src="${logoSrc}" alt="GPress">` : `<div class="logo" style="color:#fff;font-size:34px;font-weight:900">GPRESS</div>`}
+      <section class="content">
+        <div class="meta"><span class="badge">${escapeHtml(category)}</span><span class="date">${escapeHtml(formatDate(item.pubDate))}</span></div>
+        <div class="headline-row"><span class="accent"></span><h1>${escapeHtml(item.title)}</h1></div>
+        <footer class="footer"><span class="link-icon"></span><span>Повеќе на <strong>gostivarpress.mk</strong></span></footer>
+      </section>
+    </main>
+  </div>
 </body>
 </html>`;
 }
