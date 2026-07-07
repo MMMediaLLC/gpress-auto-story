@@ -9,14 +9,17 @@ HOST=127.0.0.1
 PORT=3010
 ```
 
-It does not require Docker, Puppeteer, Playwright, a database, or system package changes.
+Rendering uses Playwright (headless Chromium) to screenshot an HTML story template, so the card looks exactly like the `/story` browser preview. No Docker and no database are required.
 
 ## Local Start
 
 ```bash
 npm install
+npx playwright install chromium
 npm start
 ```
+
+Playwright browsers are cached in `./.ms-playwright` inside the app directory (override with `PLAYWRIGHT_BROWSERS_PATH`).
 
 ## Endpoints
 
@@ -31,7 +34,7 @@ GET /publish?i=0&dry=1
 POST /publish?i=0
 ```
 
-`GET /render?i=0` generates a real `1080x1920` PNG with `sharp`, saves it to:
+`GET /render?i=0` generates a real `1080x1920` PNG (Playwright screenshot of the HTML card), saves it to:
 
 ```text
 /opt/gpress-story/public/cards/
@@ -58,7 +61,7 @@ Logo behavior:
 
 - `LOGO_URL` is optional.
 - If `LOGO_URL` is empty, the renderer checks `public/logo.png`.
-- If no logo exists, it uses fallback text `GOSTIVARPRESS`.
+- If no logo exists, it uses fallback text `GPRESS`.
 - The included GPRESS logo is stored as `public/logo.png`.
 
 ## Publishing Safety
@@ -118,10 +121,13 @@ Copy the new files into `/opt/gpress-story`, then run:
 
 ```bash
 npm install --omit=dev
+npx playwright install chromium --with-deps
 node --check server.js
 systemctl restart gpress-story
 systemctl status gpress-story --no-pager
 ```
+
+`--with-deps` installs the system libraries Chromium needs (run as root the first time). The browser itself lands in `/opt/gpress-story/.ms-playwright`.
 
 Health check:
 
