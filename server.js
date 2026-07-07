@@ -10,7 +10,7 @@ const HOST = process.env.HOST || "127.0.0.1";
 const PORT = Number(process.env.PORT || 3010);
 const RSS_URL = process.env.RSS_URL || "https://gostivarpress.mk/feed/";
 const LOGO_URL = process.env.LOGO_URL || "";
-const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || `http://${HOST}:${PORT}`).replace(/\/+$/, "");
+const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || "https://story.gostivarpress.mk").replace(/\/+$/, "");
 const AUTO_PUBLISH_ENABLED = process.env.AUTO_PUBLISH_ENABLED === "true";
 const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
