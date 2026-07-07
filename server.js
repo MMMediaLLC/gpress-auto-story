@@ -275,6 +275,8 @@ async function publishItem(item, source) {
 
     if (!container.id) throw new Error("Instagram media container response did not include id.");
 
+    await waitForContainerReady(container.id);
+
     const published = await graphPost(`https://graph.instagram.com/v23.0/${encodeURIComponent(IG_USER_ID)}/media_publish`, {
       creation_id: container.id,
       access_token: IG_ACCESS_TOKEN
@@ -305,6 +307,36 @@ async function publishItem(item, source) {
     logError("publish", error);
     return { ok: false, ...record };
   }
+}
+
+async function waitForContainerReady(containerId) {
+  const maxAttempts = 12;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const status = await graphGet(
+      `https://graph.instagram.com/v23.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(IG_ACCESS_TOKEN)}`
+    );
+    if (status.status_code === "FINISHED") return;
+    if (status.status_code === "ERROR" || status.status_code === "EXPIRED") {
+      throw new Error(`Instagram container failed with status ${status.status_code}.`);
+    }
+    logInfo("publish", `container ${containerId} status ${status.status_code || "UNKNOWN"} (attempt ${attempt}/${maxAttempts})`);
+    await sleep(2500);
+  }
+  throw new Error("Instagram container was not ready after 30 seconds.");
+}
+
+async function graphGet(url) {
+  const response = await fetch(url);
+  const json = await response.json();
+  if (!response.ok || json.error) {
+    const message = json.error?.message || `${response.status} ${response.statusText}`;
+    throw new Error(`Instagram Graph API error: ${message}`);
+  }
+  return json;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function graphPost(url, body) {
