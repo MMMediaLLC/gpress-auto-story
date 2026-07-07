@@ -17,7 +17,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v8";
+const CARD_DESIGN_VERSION = "v9";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -25,8 +25,8 @@ const CARDS_DIR = path.join(PUBLIC_DIR, "cards");
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const PUBLISHED_FILE = path.join(DATA_DIR, "published.json");
 const LOCAL_LOGO_PATH = path.join(PUBLIC_DIR, "logo.png");
-const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "Montserrat-Regular.ttf");
-const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "Montserrat-Bold.ttf");
+const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Regular.ttf");
+const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Bold.ttf");
 const SVG_FONT_FACE = loadSvgFontFace();
 const VECTOR_FONT_REGULAR = loadOpenTypeFont(FONT_REGULAR_PATH);
 const VECTOR_FONT_BOLD = loadOpenTypeFont(FONT_BOLD_PATH);
@@ -330,7 +330,7 @@ function makeOverlaySvg(item, hasLogo) {
 
   const titleLines = titleLayout.lines.map((line, index) => {
     const y = titleY + index * lineHeight;
-    return svgTextPath(line, 128, y, titleLayout.fontSize, "title", { weight: "bold", stroke: "#071121", strokeWidth: 2.6 });
+    return svgTextPath(line, 128, y, titleLayout.fontSize, "title", { weight: "bold", stroke: "#071121", strokeWidth: 4.2 });
   }).join("");
 
   return `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
@@ -360,9 +360,9 @@ function makeOverlaySvg(item, hasLogo) {
         ${SVG_FONT_FACE}
         .brand { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
         .meta { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .date { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #243246; }
-        .title { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #071121; filter: url(#softShadow); }
-        .footerLight { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #344054; }
+        .date { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #182437; }
+        .title { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #050b17; filter: url(#softShadow); }
+        .footerLight { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #26364c; }
         .footerAccent { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
       </style>
     </defs>
@@ -370,15 +370,15 @@ function makeOverlaySvg(item, hasLogo) {
     <rect y="770" width="1080" height="1150" fill="url(#bottomShade)"/>
     <rect y="770" width="1080" height="1150" fill="url(#spot)"/>
     ${hasLogo ? "" : svgTextPath("GOSTIVARPRESS", 86, 170, 58, "brand", { weight: "bold", filter: "url(#shadow)" })}
-    <rect x="${categoryX}" y="1024" width="${categoryWidth}" height="70" rx="12" fill="#7285f4" opacity="0.98"/>
-    ${svgTextPath(categoryText, categoryX + 24, 1070, 34, "meta", { weight: "bold", stroke: "#ffffff", strokeWidth: 1.2 })}
-    ${svgTextPath(dateText, categoryX + categoryWidth + 34, 1072, 36, "date", { weight: "bold", stroke: "#243246", strokeWidth: 1.1 })}
+    <rect x="${categoryX}" y="1022" width="${categoryWidth}" height="72" rx="12" fill="#7285f4" opacity="1"/>
+    ${svgTextPath(categoryText, categoryX + 24, 1070, 34, "meta", { weight: "bold", stroke: "#ffffff", strokeWidth: 1.6 })}
+    ${svgTextPath(dateText, categoryX + categoryWidth + 34, 1072, 36, "date", { weight: "bold", stroke: "#182437", strokeWidth: 1.8 })}
     <rect x="86" y="${titleY - 58}" width="7" height="${Math.max(176, titleBlockHeight + 24)}" rx="4" fill="#7285f4"/>
-    ${titleLines || svgTextPath(item.title, 128, titleY, 68, "title", { weight: "bold", stroke: "#071121", strokeWidth: 2.6 })}
+    ${titleLines || svgTextPath(item.title, 128, titleY, 66, "title", { weight: "bold", stroke: "#071121", strokeWidth: 4.2 })}
     <circle cx="112" cy="1780" r="24" fill="none" stroke="#7285f4" stroke-width="6"/>
     <rect x="126" y="1770" width="34" height="6" rx="3" fill="#7285f4" transform="rotate(-35 126 1770)"/>
-    ${svgTextPath("Повеќе на", 174, 1794, 38, "footerLight", { weight: "bold", stroke: "#344054", strokeWidth: 1.1 })}
-    ${svgTextPath("gostivarpress.mk", 370, 1794, 38, "footerAccent", { weight: "bold", stroke: "#7285f4", strokeWidth: 1.1 })}
+    ${svgTextPath("Повеќе на", 174, 1794, 38, "footerLight", { weight: "bold", stroke: "#26364c", strokeWidth: 1.8 })}
+    ${svgTextPath("gostivarpress.mk", 370, 1794, 38, "footerAccent", { weight: "bold", stroke: "#7285f4", strokeWidth: 1.8 })}
   </svg>`;
 }
 async function loadLogoComposite() {
@@ -422,9 +422,9 @@ async function fetchBuffer(url) {
 function layoutTitle(title) {
   const clean = String(title || "").trim();
   const length = clean.length;
-  const fontSize = length <= 55 ? 92 : length <= 95 ? 80 : length <= 140 ? 68 : 58;
-  const maxChars = length <= 55 ? 17 : length <= 95 ? 21 : length <= 140 ? 25 : 29;
-  const maxLines = 6;
+  const fontSize = length <= 55 ? 66 : length <= 95 ? 62 : length <= 140 ? 58 : 54;
+  const maxChars = length <= 55 ? 20 : length <= 95 ? 23 : length <= 140 ? 26 : 29;
+  const maxLines = 5;
   const words = clean.split(/\s+/);
   const lines = [];
   let current = "";
