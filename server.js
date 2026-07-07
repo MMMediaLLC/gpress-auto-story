@@ -20,13 +20,16 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v17";
+const TOKEN_REFRESH_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+const CARD_DESIGN_VERSION = "v18";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
 const CARDS_DIR = path.join(PUBLIC_DIR, "cards");
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const PUBLISHED_FILE = path.join(DATA_DIR, "published.json");
+const TOKEN_FILE = path.join(DATA_DIR, "token.json");
+let storedToken = loadStoredToken();
 const LOCAL_LOGO_PATH = path.join(PUBLIC_DIR, "logo.png");
 const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Bold.ttf");
@@ -112,6 +115,16 @@ if (AUTO_PUBLISH_ENABLED) {
   setTimeout(() => {
     checkAndPublishLatest().catch((error) => logError("auto-publish-initial", error));
   }, 15_000).unref();
+}
+
+if (IG_ACCESS_TOKEN) {
+  setTimeout(() => {
+    refreshAccessToken().catch((error) => logError("token-refresh", error));
+  }, 60_000).unref();
+
+  setInterval(() => {
+    refreshAccessToken().catch((error) => logError("token-refresh", error));
+  }, TOKEN_REFRESH_INTERVAL_MS).unref();
 }
 
 async function itemFromRequest(requestUrl) {
@@ -239,7 +252,7 @@ async function dryRunPublish(item) {
 }
 
 async function publishItem(item, source) {
-  if (!IG_USER_ID || !IG_ACCESS_TOKEN) {
+  if (!IG_USER_ID || !currentAccessToken()) {
     return {
       ok: false,
       error: "Missing IG_USER_ID or IG_ACCESS_TOKEN environment variables."
@@ -270,7 +283,7 @@ async function publishItem(item, source) {
     const container = await graphPost(`https://graph.instagram.com/v23.0/${encodeURIComponent(IG_USER_ID)}/media`, {
       media_type: "STORIES",
       image_url: rendered.imageUrl,
-      access_token: IG_ACCESS_TOKEN
+      access_token: currentAccessToken()
     });
 
     if (!container.id) throw new Error("Instagram media container response did not include id.");
@@ -279,7 +292,7 @@ async function publishItem(item, source) {
 
     const published = await graphPost(`https://graph.instagram.com/v23.0/${encodeURIComponent(IG_USER_ID)}/media_publish`, {
       creation_id: container.id,
-      access_token: IG_ACCESS_TOKEN
+      access_token: currentAccessToken()
     });
 
     if (!published.id) throw new Error("Instagram publish response did not include id.");
@@ -309,11 +322,44 @@ async function publishItem(item, source) {
   }
 }
 
+function loadStoredToken() {
+  try {
+    const parsed = JSON.parse(fss.readFileSync(TOKEN_FILE, "utf8"));
+    return parsed && parsed.access_token ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function currentAccessToken() {
+  return storedToken?.access_token || IG_ACCESS_TOKEN;
+}
+
+async function refreshAccessToken() {
+  const token = currentAccessToken();
+  if (!token) return;
+
+  const json = await graphGet(
+    `https://graph.instagram.com/refresh_access_token?grant_type=ig_refresh_token&access_token=${encodeURIComponent(token)}`
+  );
+
+  if (!json.access_token) throw new Error("Refresh response did not include access_token.");
+
+  storedToken = {
+    access_token: json.access_token,
+    expiresIn: json.expires_in,
+    refreshedAt: new Date().toISOString()
+  };
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(TOKEN_FILE, `${JSON.stringify(storedToken, null, 2)}\n`, "utf8");
+  logInfo("token", `refreshed, valid for ${Math.round((json.expires_in || 0) / 86400)} days`);
+}
+
 async function waitForContainerReady(containerId) {
   const maxAttempts = 12;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const status = await graphGet(
-      `https://graph.instagram.com/v23.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(IG_ACCESS_TOKEN)}`
+      `https://graph.instagram.com/v23.0/${encodeURIComponent(containerId)}?fields=status_code&access_token=${encodeURIComponent(currentAccessToken())}`
     );
     if (status.status_code === "FINISHED") return;
     if (status.status_code === "ERROR" || status.status_code === "EXPIRED") {
@@ -471,7 +517,7 @@ function renderHomePage(items, published) {
     <h1>GPress Story V3</h1>
     <div class="sub">RSS: ${escapeHtml(RSS_URL)}</div>
     <div class="status">
-      <span class="chip ${IG_USER_ID && IG_ACCESS_TOKEN ? "good" : "warn"}">Instagram env: ${IG_USER_ID && IG_ACCESS_TOKEN ? "ready" : "missing"}</span>
+      <span class="chip ${IG_USER_ID && currentAccessToken() ? "good" : "warn"}">Instagram env: ${IG_USER_ID && currentAccessToken() ? "ready" : "missing"}</span>
       <span class="chip ${AUTO_PUBLISH_ENABLED ? "good" : "warn"}">Auto publish: ${AUTO_PUBLISH_ENABLED ? "true" : "false"}</span>
       <span class="chip">Public base: ${escapeHtml(PUBLIC_BASE_URL)}</span>
     </div>
@@ -530,8 +576,8 @@ function renderStoryCardHtml(item) {
     .accent { width: 4px; border-radius: 999px; background: ${accentBackground}; }
     h1 { margin: -5px 0 0; max-width: 462px; color: #ffffff; font-size: ${storyTitleFontSize(item.title)}px; line-height: 1.12; font-weight: 900; letter-spacing: 0; text-wrap: balance; text-shadow: 0 2px 26px rgba(0,0,0,.45); }
     .footer { display: flex; align-items: center; gap: 14px; color: rgba(255,255,255,.64); font-size: 20px; font-weight: 700; line-height: 1; }
-    .link-icon { width: 26px; height: 26px; border: 4px solid ${BRAND_COLOR}; border-radius: 50%; position: relative; flex: 0 0 auto; }
-    .link-icon::after { content: ""; position: absolute; width: 18px; height: 4px; border-radius: 999px; background: ${BRAND_COLOR}; right: -12px; top: 3px; transform: rotate(-35deg); }
+    .link-icon { width: 26px; height: 26px; border: 4px solid ${catColors.solid}; border-radius: 50%; position: relative; flex: 0 0 auto; }
+    .link-icon::after { content: ""; position: absolute; width: 18px; height: 4px; border-radius: 999px; background: ${catColors.solid}; right: -12px; top: 3px; transform: rotate(-35deg); }
     .footer strong { color: ${BRAND_COLOR}; font-weight: 900; }
     .nav { position: fixed; left: 18px; bottom: 18px; display: flex; gap: 10px; z-index: 20; }
     .nav a { color: #fff; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.20); border-radius: 10px; padding: 10px 12px; text-decoration: none; font-weight: 800; }
