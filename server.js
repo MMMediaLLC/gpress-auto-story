@@ -4,6 +4,7 @@ const fss = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
 const sharp = require("sharp");
+const opentype = require("opentype.js");
 const { URL } = require("node:url");
 
 const HOST = process.env.HOST || "127.0.0.1";
@@ -23,9 +24,11 @@ const CARDS_DIR = path.join(PUBLIC_DIR, "cards");
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const PUBLISHED_FILE = path.join(DATA_DIR, "published.json");
 const LOCAL_LOGO_PATH = path.join(PUBLIC_DIR, "logo.png");
-const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Regular.ttf");
-const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Bold.ttf");
+const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "Montserrat-Regular.ttf");
+const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "Montserrat-Bold.ttf");
 const SVG_FONT_FACE = loadSvgFontFace();
+const VECTOR_FONT_REGULAR = loadOpenTypeFont(FONT_REGULAR_PATH);
+const VECTOR_FONT_BOLD = loadOpenTypeFont(FONT_BOLD_PATH);
 
 let feedCache = {
   fetchedAt: 0,
@@ -238,6 +241,45 @@ function loadSvgFontFace() {
   }
 }
 
+function loadOpenTypeFont(fontPath) {
+  try {
+    if (!fss.existsSync(fontPath)) return null;
+    const buffer = fss.readFileSync(fontPath);
+    const arrayBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+    return opentype.parse(arrayBuffer);
+  } catch (error) {
+    logError("font-vector-load", error);
+    return null;
+  }
+}
+
+function svgTextPath(text, x, y, fontSize, className, options = {}) {
+  const font = options.weight === "regular" ? VECTOR_FONT_REGULAR : VECTOR_FONT_BOLD;
+  const filter = options.filter ? ` filter="${escapeXml(options.filter)}"` : "";
+  const value = String(text || "");
+
+  if (!font) {
+    return `<text x="${x}" y="${y}" class="${escapeXml(className)}" font-size="${fontSize}"${filter}>${escapeXml(value)}</text>`;
+  }
+
+  const pathData = textToPathData(font, value, x, y, fontSize);
+  return `<path class="${escapeXml(className)}" d="${escapeXml(pathData)}"${filter}/>`;
+}
+
+function textToPathData(font, text, x, y, fontSize) {
+  const scale = fontSize / font.unitsPerEm;
+  let cursor = x;
+  let pathData = "";
+
+  for (const char of Array.from(text)) {
+    const glyph = font.charToGlyph(char);
+    pathData += glyph.getPath(cursor, y, fontSize).toPathData(2);
+    cursor += (glyph.advanceWidth || font.unitsPerEm * 0.5) * scale;
+  }
+
+  return pathData;
+}
+
 async function makeBackground(imageUrl) {
   if (imageUrl) {
     try {
@@ -273,19 +315,18 @@ async function makeBackground(imageUrl) {
 }
 
 function makeOverlaySvg(item, hasLogo) {
-  const safeTitle = escapeXml(item.title);
-  const safeCategory = escapeXml((item.category || "Вести").toUpperCase());
-  const safeDate = escapeXml(formatDate(item.pubDate));
+  const categoryText = (item.category || "Вести").toUpperCase();
+  const dateText = formatDate(item.pubDate);
   const titleLayout = layoutTitle(item.title);
   const lineHeight = Math.round(titleLayout.fontSize * 1.08);
   const titleBlockHeight = (titleLayout.lines.length - 1) * lineHeight + titleLayout.fontSize;
   const titleY = Math.max(1260, 1508 - titleBlockHeight);
-  const categoryWidth = badgeWidth(safeCategory);
+  const categoryWidth = badgeWidth(categoryText);
   const categoryX = 86;
 
   const titleLines = titleLayout.lines.map((line, index) => {
     const y = titleY + index * lineHeight;
-    return `<text x="128" y="${y}" class="title" font-size="${titleLayout.fontSize}">${escapeXml(line)}</text>`;
+    return svgTextPath(line, 128, y, titleLayout.fontSize, "title", { weight: "bold" });
   }).join("");
 
   return `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
@@ -327,17 +368,17 @@ function makeOverlaySvg(item, hasLogo) {
     <rect y="820" width="1080" height="1100" fill="url(#spot)"/>
     <rect x="68" y="74" width="514" height="118" rx="20" fill="rgba(16,24,40,0.50)"/>
     <rect x="82" y="96" width="7" height="74" rx="4" fill="#7285f4"/>
-    ${hasLogo ? "" : `<text x="112" y="144" class="brand" font-size="42" filter="url(#shadow)">GOSTIVARPRESS</text>`}
+    ${hasLogo ? "" : svgTextPath("GOSTIVARPRESS", 112, 144, 42, "brand", { weight: "bold", filter: "url(#shadow)" })}
     <rect x="112" y="210" width="130" height="8" rx="4" fill="#7285f4"/>
     <rect x="${categoryX}" y="1040" width="${categoryWidth}" height="58" rx="10" fill="#7285f4" opacity="0.98"/>
-    <text x="${categoryX + 20}" y="1078" class="meta" font-size="27">${safeCategory}</text>
-    <text x="${categoryX + categoryWidth + 28}" y="1078" class="date" font-size="31">${safeDate}</text>
+    ${svgTextPath(categoryText, categoryX + 20, 1078, 27, "meta", { weight: "bold" })}
+    ${svgTextPath(dateText, categoryX + categoryWidth + 28, 1078, 31, "date", { weight: "bold" })}
     <rect x="86" y="${titleY - 58}" width="7" height="${Math.max(176, titleBlockHeight + 24)}" rx="4" fill="#7285f4"/>
-    ${titleLines || `<text x="540" y="${titleY}" class="title" font-size="68" text-anchor="middle">${safeTitle}</text>`}
+    ${titleLines || svgTextPath(item.title, 128, titleY, 68, "title", { weight: "bold" })}
     <circle cx="112" cy="1780" r="24" fill="none" stroke="#7285f4" stroke-width="6"/>
     <rect x="126" y="1770" width="34" height="6" rx="3" fill="#7285f4" transform="rotate(-35 126 1770)"/>
-    <text x="174" y="1794" class="footerLight" font-size="34">Повеќе на</text>
-    <text x="362" y="1794" class="footerAccent" font-size="34">gostivarpress.mk</text>
+    ${svgTextPath("Повеќе на", 174, 1794, 34, "footerLight", { weight: "regular" })}
+    ${svgTextPath("gostivarpress.mk", 362, 1794, 34, "footerAccent", { weight: "bold" })}
   </svg>`;
 }
 
