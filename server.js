@@ -20,7 +20,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v15";
+const CARD_DESIGN_VERSION = "v16";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -557,14 +557,17 @@ const BRAND_COLOR = "#7285F4";
 // Ordered: more specific keys first ("гостиварски" before "гостивар").
 // Subcategories inherit via substring match on the main category name.
 const CATEGORY_COLORS = [
-  ["гостиварски", { solid: "#3B82F6" }],
-  ["гостивар", { solid: "#7285F4" }],
-  ["македонија", { solid: "#EF4444" }],
-  ["свет", { solid: "#F97316" }],
-  ["спорт", { solid: "#22C55E" }],
+  ["гостиварски", { solid: "#4557D6" }],
+  ["гостивар", { solid: "#4F46E5" }],
+  ["македонија", { solid: "#DC2626" }],
+  ["свет", { solid: "#D97706" }],
+  ["спорт", { solid: "#84CC16" }],
   ["култура", { solid: "#7285F4" }],
-  ["живот", { solid: "#14B8A6" }],
-  ["магазин", { solid: "#EC4899" }],
+  ["живот", { solid: "#5B6EE8" }],
+  ["магазин", { solid: "#F43F5E" }],
+  ["занимливости", { solid: "#65A30D" }],
+  ["вести", { solid: "#7285F4" }],
+  ["здравје", { solid: "#C084FC" }],
   ["фото", {
     solid: "#FF4D6D",
     badge: "linear-gradient(90deg,#FF4D6D,#F59E0B,#3B82F6)",
