@@ -3,6 +3,10 @@ const fs = require("node:fs/promises");
 const fss = require("node:fs");
 const path = require("node:path");
 const crypto = require("node:crypto");
+
+process.env.PLAYWRIGHT_BROWSERS_PATH =
+  process.env.PLAYWRIGHT_BROWSERS_PATH || path.join(__dirname, ".ms-playwright");
+
 const { chromium } = require("playwright");
 const { URL } = require("node:url");
 
