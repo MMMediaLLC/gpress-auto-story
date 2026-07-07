@@ -20,7 +20,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v14";
+const CARD_DESIGN_VERSION = "v15";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -521,7 +521,7 @@ function renderStoryCardHtml(item) {
     .stage { width: calc(540px * var(--fit, 1)); height: calc(960px * var(--fit, 1)); }
     .story { width: 540px; height: 960px; position: relative; overflow: hidden; background-image: ${background}; background-size: cover; background-position: center; color: #071121; box-shadow: 0 30px 90px rgba(0,0,0,.45); transform: scale(var(--fit, 1)); transform-origin: top left; }
     .story::before { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,10,24,.45) 0%, rgba(5,10,24,.06) 30%, rgba(5,10,24,0) 42%), linear-gradient(180deg, rgba(6,11,22,0) 40%, rgba(6,11,22,.78) 60%, rgba(5,9,18,.97) 100%); }
-    .logo { position: absolute; top: 28px; left: 36px; width: 210px; height: auto; z-index: 2; filter: drop-shadow(0 8px 20px rgba(0,0,0,.25)); }
+    .logo { position: absolute; top: 28px; right: 34px; width: 210px; height: auto; z-index: 2; filter: drop-shadow(0 8px 20px rgba(0,0,0,.25)); }
     .content { position: absolute; left: 36px; right: 34px; bottom: 44px; z-index: 2; }
     .meta { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
     .badge { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 16px; border-radius: 8px; background: ${badgeBackground}; color: #fff; font-size: 18px; line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
