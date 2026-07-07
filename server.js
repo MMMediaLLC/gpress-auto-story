@@ -237,7 +237,7 @@ async function makeBackground(imageUrl) {
       </defs>
       <rect width="1080" height="1920" fill="url(#g)"/>
       <rect width="1080" height="1920" fill="url(#r)"/>
-      <text x="70" y="940" font-family="Arial, sans-serif" font-size="118" font-weight="900" fill="rgba(255,255,255,0.10)">GPRESS</text>
+      <text x="70" y="940" font-family="DejaVu Sans, Liberation Sans, Arial, sans-serif" font-size="118" font-weight="900" fill="rgba(255,255,255,0.10)">GPRESS</text>
     </svg>
   `)).resize(1080, 1920);
 }
@@ -282,13 +282,13 @@ function makeOverlaySvg(item, hasLogo) {
         <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#101828" flood-opacity="0.16"/>
       </filter>
       <style>
-        .brand { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .meta { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .date { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #344054; }
-        .title { font-family: Arial, "DejaVu Sans", sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; filter: url(#softShadow); }
-        .footer { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; }
-        .footerLight { font-family: Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #475467; }
-        .footerAccent { font-family: Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
+        .brand { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
+        .meta { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
+        .date { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #344054; }
+        .title { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; filter: url(#softShadow); }
+        .footer { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; }
+        .footerLight { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #475467; }
+        .footerAccent { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
       </style>
     </defs>
     <rect width="1080" height="390" fill="url(#topShade)"/>
