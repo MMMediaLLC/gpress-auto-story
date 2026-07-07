@@ -20,7 +20,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v10";
+const CARD_DESIGN_VERSION = "v11";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -491,7 +491,7 @@ function renderStoryCardHtml(item) {
     .meta { display: flex; align-items: center; gap: 18px; margin-bottom: 52px; }
     .badge { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 16px; border-radius: 7px; background: #7285f4; color: #fff; font-size: 18px; line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
     .date { color: #172033; font-size: 19px; font-weight: 900; line-height: 1; }
-    .headline-row { display: grid; grid-template-columns: 4px minmax(0, 1fr); column-gap: 14px; align-items: stretch; margin-bottom: 124px; }
+    .headline-row { display: grid; grid-template-columns: 4px minmax(0, 1fr); column-gap: 14px; align-items: stretch; margin-bottom: 88px; }
     .accent { width: 4px; border-radius: 999px; background: #7285f4; }
     h1 { margin: -5px 0 0; max-width: 462px; color: #071121; font-size: ${storyTitleFontSize(item.title)}px; line-height: 1.06; font-weight: 900; letter-spacing: 0; text-wrap: balance; }
     .footer { display: flex; align-items: center; gap: 16px; color: #344054; font-size: 20px; font-weight: 900; line-height: 1; }
