@@ -17,6 +17,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
+const CARD_DESIGN_VERSION = "v7";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -197,7 +198,7 @@ function normalizeWordPressImageUrl(imageUrl) {
 async function renderCardPng(item) {
   await fs.mkdir(CARDS_DIR, { recursive: true });
 
-  const filename = `story-${item.id}.png`;
+  const filename = `story-${item.id}-${CARD_DESIGN_VERSION}.png`;
   const outputPath = path.join(CARDS_DIR, filename);
   const imageUrl = `${PUBLIC_BASE_URL}/cards/${filename}`;
 
@@ -595,7 +596,7 @@ async function writePublishedStore(store) {
 
 async function serveCardFile(res, pathname) {
   const filename = path.basename(pathname);
-  if (!/^story-[a-f0-9]{16}\.png$/i.test(filename)) {
+  if (!/^story-[a-f0-9]{16}(?:-v[0-9]+)?\.png$/i.test(filename)) {
     return sendJson(res, 400, { ok: false, error: "Invalid card filename." });
   }
 
@@ -604,7 +605,7 @@ async function serveCardFile(res, pathname) {
     const data = await fs.readFile(filePath);
     res.writeHead(200, {
       "content-type": "image/png",
-      "cache-control": "public, max-age=86400"
+      "cache-control": "no-store, max-age=0"
     });
     res.end(data);
   } catch (error) {
