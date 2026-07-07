@@ -17,7 +17,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v7";
+const CARD_DESIGN_VERSION = "v8";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -257,6 +257,9 @@ function loadOpenTypeFont(fontPath) {
 function svgTextPath(text, x, y, fontSize, className, options = {}) {
   const font = options.weight === "regular" ? VECTOR_FONT_REGULAR : VECTOR_FONT_BOLD;
   const filter = options.filter ? ` filter="${escapeXml(options.filter)}"` : "";
+  const stroke = options.stroke ? ` stroke="${escapeXml(options.stroke)}"` : "";
+  const strokeWidth = options.strokeWidth ? ` stroke-width="${Number(options.strokeWidth)}"` : "";
+  const strokeJoin = options.strokeWidth ? ` stroke-linejoin="round" paint-order="stroke fill"` : "";
   const value = String(text || "");
 
   if (!font) {
@@ -264,7 +267,7 @@ function svgTextPath(text, x, y, fontSize, className, options = {}) {
   }
 
   const pathData = textToPathData(font, value, x, y, fontSize);
-  return `<path class="${escapeXml(className)}" d="${escapeXml(pathData)}"${filter}/>`;
+  return `<path class="${escapeXml(className)}" d="${escapeXml(pathData)}"${filter}${stroke}${strokeWidth}${strokeJoin}/>`;
 }
 
 function textToPathData(font, text, x, y, fontSize) {
@@ -327,7 +330,7 @@ function makeOverlaySvg(item, hasLogo) {
 
   const titleLines = titleLayout.lines.map((line, index) => {
     const y = titleY + index * lineHeight;
-    return svgTextPath(line, 128, y, titleLayout.fontSize, "title", { weight: "bold" });
+    return svgTextPath(line, 128, y, titleLayout.fontSize, "title", { weight: "bold", stroke: "#071121", strokeWidth: 2.6 });
   }).join("");
 
   return `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
@@ -367,15 +370,15 @@ function makeOverlaySvg(item, hasLogo) {
     <rect y="770" width="1080" height="1150" fill="url(#bottomShade)"/>
     <rect y="770" width="1080" height="1150" fill="url(#spot)"/>
     ${hasLogo ? "" : svgTextPath("GOSTIVARPRESS", 86, 170, 58, "brand", { weight: "bold", filter: "url(#shadow)" })}
-    <rect x="${categoryX}" y="1036" width="${categoryWidth}" height="58" rx="10" fill="#7285f4" opacity="0.98"/>
-    ${svgTextPath(categoryText, categoryX + 20, 1076, 29, "meta", { weight: "bold" })}
-    ${svgTextPath(dateText, categoryX + categoryWidth + 28, 1077, 34, "date", { weight: "bold" })}
+    <rect x="${categoryX}" y="1024" width="${categoryWidth}" height="70" rx="12" fill="#7285f4" opacity="0.98"/>
+    ${svgTextPath(categoryText, categoryX + 24, 1070, 34, "meta", { weight: "bold", stroke: "#ffffff", strokeWidth: 1.2 })}
+    ${svgTextPath(dateText, categoryX + categoryWidth + 34, 1072, 36, "date", { weight: "bold", stroke: "#243246", strokeWidth: 1.1 })}
     <rect x="86" y="${titleY - 58}" width="7" height="${Math.max(176, titleBlockHeight + 24)}" rx="4" fill="#7285f4"/>
-    ${titleLines || svgTextPath(item.title, 128, titleY, 68, "title", { weight: "bold" })}
+    ${titleLines || svgTextPath(item.title, 128, titleY, 68, "title", { weight: "bold", stroke: "#071121", strokeWidth: 2.6 })}
     <circle cx="112" cy="1780" r="24" fill="none" stroke="#7285f4" stroke-width="6"/>
     <rect x="126" y="1770" width="34" height="6" rx="3" fill="#7285f4" transform="rotate(-35 126 1770)"/>
-    ${svgTextPath("Повеќе на", 174, 1794, 36, "footerLight", { weight: "regular" })}
-    ${svgTextPath("gostivarpress.mk", 362, 1794, 36, "footerAccent", { weight: "bold" })}
+    ${svgTextPath("Повеќе на", 174, 1794, 38, "footerLight", { weight: "bold", stroke: "#344054", strokeWidth: 1.1 })}
+    ${svgTextPath("gostivarpress.mk", 370, 1794, 38, "footerAccent", { weight: "bold", stroke: "#7285f4", strokeWidth: 1.1 })}
   </svg>`;
 }
 async function loadLogoComposite() {
@@ -419,8 +422,8 @@ async function fetchBuffer(url) {
 function layoutTitle(title) {
   const clean = String(title || "").trim();
   const length = clean.length;
-  const fontSize = length <= 55 ? 82 : length <= 95 ? 72 : length <= 140 ? 62 : 54;
-  const maxChars = length <= 55 ? 18 : length <= 95 ? 22 : length <= 140 ? 26 : 30;
+  const fontSize = length <= 55 ? 92 : length <= 95 ? 80 : length <= 140 ? 68 : 58;
+  const maxChars = length <= 55 ? 17 : length <= 95 ? 21 : length <= 140 ? 25 : 29;
   const maxLines = 6;
   const words = clean.split(/\s+/);
   const lines = [];
@@ -453,7 +456,7 @@ function truncateLine(line, maxChars) {
 }
 
 function badgeWidth(text) {
-  return Math.min(340, Math.max(120, 42 + String(text || "").length * 16));
+  return Math.min(380, Math.max(150, 62 + String(text || "").length * 18));
 }
 
 function badgeX(text) {
@@ -765,7 +768,21 @@ function clampIndex(value, length) {
 function formatDate(input) {
   const date = new Date(input);
   if (Number.isNaN(date.getTime())) return "";
-  return new Intl.DateTimeFormat("mk-MK", { day: "2-digit", month: "2-digit", year: "numeric" }).format(date);
+  const months = [
+    "јануари",
+    "февруари",
+    "март",
+    "април",
+    "мај",
+    "јуни",
+    "јули",
+    "август",
+    "септември",
+    "октомври",
+    "ноември",
+    "декември"
+  ];
+  return `${date.getDate()} ${months[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 function stableId(input) {
