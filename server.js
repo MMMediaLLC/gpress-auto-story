@@ -23,6 +23,9 @@ const CARDS_DIR = path.join(PUBLIC_DIR, "cards");
 const DATA_DIR = path.join(ROOT_DIR, "data");
 const PUBLISHED_FILE = path.join(DATA_DIR, "published.json");
 const LOCAL_LOGO_PATH = path.join(PUBLIC_DIR, "logo.png");
+const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Regular.ttf");
+const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Bold.ttf");
+const SVG_FONT_FACE = loadSvgFontFace();
 
 let feedCache = {
   fetchedAt: 0,
@@ -209,6 +212,32 @@ async function renderCardPng(item) {
   return { outputPath, imageUrl };
 }
 
+function loadSvgFontFace() {
+  try {
+    if (!fss.existsSync(FONT_REGULAR_PATH) || !fss.existsSync(FONT_BOLD_PATH)) {
+      return "";
+    }
+
+    const regular = fss.readFileSync(FONT_REGULAR_PATH).toString("base64");
+    const bold = fss.readFileSync(FONT_BOLD_PATH).toString("base64");
+
+    return `
+          @font-face {
+            font-family: "GPressNoto";
+            src: url("data:font/truetype;charset=utf-8;base64,${regular}") format("truetype");
+            font-weight: 400 800;
+          }
+          @font-face {
+            font-family: "GPressNoto";
+            src: url("data:font/truetype;charset=utf-8;base64,${bold}") format("truetype");
+            font-weight: 900;
+          }`;
+  } catch (error) {
+    logError("font-load", error);
+    return "";
+  }
+}
+
 async function makeBackground(imageUrl) {
   if (imageUrl) {
     try {
@@ -237,7 +266,8 @@ async function makeBackground(imageUrl) {
       </defs>
       <rect width="1080" height="1920" fill="url(#g)"/>
       <rect width="1080" height="1920" fill="url(#r)"/>
-      <text x="70" y="940" font-family="DejaVu Sans, Liberation Sans, Arial, sans-serif" font-size="118" font-weight="900" fill="rgba(255,255,255,0.10)">GPRESS</text>
+      <style>${SVG_FONT_FACE}</style>
+      <text x="70" y="940" font-family="GPressNoto, DejaVu Sans, Liberation Sans, Arial, sans-serif" font-size="118" font-weight="900" fill="rgba(255,255,255,0.10)">GPRESS</text>
     </svg>
   `)).resize(1080, 1920);
 }
@@ -282,13 +312,14 @@ function makeOverlaySvg(item, hasLogo) {
         <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#101828" flood-opacity="0.16"/>
       </filter>
       <style>
-        .brand { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .meta { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .date { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #344054; }
-        .title { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; filter: url(#softShadow); }
-        .footer { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; }
-        .footerLight { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #475467; }
-        .footerAccent { font-family: "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
+        ${SVG_FONT_FACE}
+        .brand { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
+        .meta { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
+        .date { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #344054; }
+        .title { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; filter: url(#softShadow); }
+        .footer { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; }
+        .footerLight { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #475467; }
+        .footerAccent { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
       </style>
     </defs>
     <rect width="1080" height="390" fill="url(#topShade)"/>
