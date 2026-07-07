@@ -20,7 +20,7 @@ const IG_USER_ID = process.env.IG_USER_ID || "";
 const IG_ACCESS_TOKEN = process.env.IG_ACCESS_TOKEN || "";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const AUTO_PUBLISH_INTERVAL_MS = 10 * 60 * 1000;
-const CARD_DESIGN_VERSION = "v13";
+const CARD_DESIGN_VERSION = "v14";
 
 const ROOT_DIR = __dirname;
 const PUBLIC_DIR = path.join(ROOT_DIR, "public");
@@ -492,6 +492,9 @@ function renderStoryCardHtml(item) {
     ? `url('${cssUrl(item.image)}')`
     : "linear-gradient(150deg, #111827 0%, #7285f4 52%, #060912 100%)";
   const category = item.category || "Вести";
+  const catColors = categoryColor(category);
+  const badgeBackground = catColors.badge || catColors.solid;
+  const accentBackground = catColors.accent || catColors.solid;
 
   return `<!doctype html>
 <html lang="mk">
@@ -521,15 +524,15 @@ function renderStoryCardHtml(item) {
     .logo { position: absolute; top: 28px; left: 36px; width: 210px; height: auto; z-index: 2; filter: drop-shadow(0 8px 20px rgba(0,0,0,.25)); }
     .content { position: absolute; left: 36px; right: 34px; bottom: 44px; z-index: 2; }
     .meta { display: flex; align-items: center; gap: 14px; margin-bottom: 30px; }
-    .badge { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 16px; border-radius: 8px; background: #7285f4; color: #fff; font-size: 18px; line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
+    .badge { display: inline-flex; align-items: center; justify-content: center; min-height: 38px; padding: 0 16px; border-radius: 8px; background: ${badgeBackground}; color: #fff; font-size: 18px; line-height: 1; font-weight: 900; text-transform: uppercase; letter-spacing: 0; }
     .date { color: #c7d2fe; font-size: 18px; font-weight: 700; line-height: 1; }
     .headline-row { display: grid; grid-template-columns: 4px minmax(0, 1fr); column-gap: 14px; align-items: stretch; margin-bottom: 60px; }
-    .accent { width: 4px; border-radius: 999px; background: #7285f4; }
+    .accent { width: 4px; border-radius: 999px; background: ${accentBackground}; }
     h1 { margin: -5px 0 0; max-width: 462px; color: #ffffff; font-size: ${storyTitleFontSize(item.title)}px; line-height: 1.12; font-weight: 900; letter-spacing: 0; text-wrap: balance; text-shadow: 0 2px 18px rgba(0,0,0,.35); }
     .footer { display: flex; align-items: center; gap: 14px; color: #cbd5e1; font-size: 20px; font-weight: 700; line-height: 1; }
-    .link-icon { width: 26px; height: 26px; border: 4px solid #93a5ff; border-radius: 50%; position: relative; flex: 0 0 auto; }
-    .link-icon::after { content: ""; position: absolute; width: 18px; height: 4px; border-radius: 999px; background: #93a5ff; right: -12px; top: 3px; transform: rotate(-35deg); }
-    .footer strong { color: #93a5ff; font-weight: 900; }
+    .link-icon { width: 26px; height: 26px; border: 4px solid ${BRAND_COLOR}; border-radius: 50%; position: relative; flex: 0 0 auto; }
+    .link-icon::after { content: ""; position: absolute; width: 18px; height: 4px; border-radius: 999px; background: ${BRAND_COLOR}; right: -12px; top: 3px; transform: rotate(-35deg); }
+    .footer strong { color: ${BRAND_COLOR}; font-weight: 900; }
     .nav { position: fixed; left: 18px; bottom: 18px; display: flex; gap: 10px; z-index: 20; }
     .nav a { color: #fff; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.20); border-radius: 10px; padding: 10px 12px; text-decoration: none; font-weight: 800; }
   </style>
@@ -547,6 +550,37 @@ function renderStoryCardHtml(item) {
   </div>
 </body>
 </html>`;
+}
+
+const BRAND_COLOR = "#7285F4";
+
+// Ordered: more specific keys first ("гостиварски" before "гостивар").
+// Subcategories inherit via substring match on the main category name.
+const CATEGORY_COLORS = [
+  ["гостиварски", { solid: "#3B82F6" }],
+  ["гостивар", { solid: "#7285F4" }],
+  ["македонија", { solid: "#EF4444" }],
+  ["свет", { solid: "#F97316" }],
+  ["спорт", { solid: "#22C55E" }],
+  ["култура", { solid: "#7285F4" }],
+  ["живот", { solid: "#14B8A6" }],
+  ["магазин", { solid: "#EC4899" }],
+  ["фото", {
+    solid: "#FF4D6D",
+    badge: "linear-gradient(90deg,#FF4D6D,#F59E0B,#3B82F6)",
+    accent: "linear-gradient(180deg,#FF4D6D,#F59E0B,#3B82F6)"
+  }],
+  ["видео", { solid: "#7285F4" }],
+  ["камери", { solid: "#7285F4" }],
+  ["радио", { solid: "#7285F4" }]
+];
+
+function categoryColor(category) {
+  const normalized = String(category || "").toLowerCase();
+  for (const [key, colors] of CATEGORY_COLORS) {
+    if (normalized.includes(key)) return colors;
+  }
+  return { solid: BRAND_COLOR };
 }
 
 function storyTitleFontSize(title) {
