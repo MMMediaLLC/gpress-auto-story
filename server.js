@@ -320,7 +320,7 @@ function makeOverlaySvg(item, hasLogo) {
   const titleLayout = layoutTitle(item.title);
   const lineHeight = Math.round(titleLayout.fontSize * 1.08);
   const titleBlockHeight = (titleLayout.lines.length - 1) * lineHeight + titleLayout.fontSize;
-  const titleY = Math.max(1260, 1508 - titleBlockHeight);
+  const titleY = Math.max(1252, 1538 - titleBlockHeight);
   const categoryWidth = badgeWidth(categoryText);
   const categoryX = 86;
 
@@ -332,56 +332,51 @@ function makeOverlaySvg(item, hasLogo) {
   return `<svg width="1080" height="1920" viewBox="0 0 1080 1920" xmlns="http://www.w3.org/2000/svg">
     <defs>
       <linearGradient id="topShade" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0%" stop-color="rgba(3,10,24,0.46)"/>
-        <stop offset="58%" stop-color="rgba(3,10,24,0.16)"/>
+        <stop offset="0%" stop-color="rgba(3,10,24,0.44)"/>
+        <stop offset="58%" stop-color="rgba(3,10,24,0.14)"/>
         <stop offset="100%" stop-color="rgba(0,0,0,0)"/>
       </linearGradient>
       <linearGradient id="bottomShade" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0%" stop-color="rgba(255,255,255,0.00)"/>
-        <stop offset="26%" stop-color="rgba(255,255,255,0.66)"/>
-        <stop offset="66%" stop-color="rgba(255,255,255,0.94)"/>
+        <stop offset="24%" stop-color="rgba(255,255,255,0.58)"/>
+        <stop offset="64%" stop-color="rgba(255,255,255,0.90)"/>
         <stop offset="100%" stop-color="rgba(255,255,255,0.98)"/>
       </linearGradient>
       <radialGradient id="spot" cx="50%" cy="72%" r="58%">
-        <stop offset="0%" stop-color="rgba(114,133,244,0.14)"/>
+        <stop offset="0%" stop-color="rgba(114,133,244,0.12)"/>
         <stop offset="100%" stop-color="rgba(114,133,244,0)"/>
       </radialGradient>
       <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%">
         <feDropShadow dx="0" dy="8" stdDeviation="14" flood-color="#000" flood-opacity="0.22"/>
       </filter>
       <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
-        <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#101828" flood-opacity="0.16"/>
+        <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#ffffff" flood-opacity="0.22"/>
       </filter>
       <style>
         ${SVG_FONT_FACE}
         .brand { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
         .meta { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #fff; }
-        .date { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #344054; }
-        .title { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; filter: url(#softShadow); }
-        .footer { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #101828; }
-        .footerLight { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #475467; }
+        .date { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #243246; }
+        .title { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #071121; filter: url(#softShadow); }
+        .footerLight { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 700; letter-spacing: 0; fill: #344054; }
         .footerAccent { font-family: "GPressNoto", "DejaVu Sans", "Liberation Sans", Arial, sans-serif; font-weight: 900; letter-spacing: 0; fill: #7285f4; }
       </style>
     </defs>
     <rect width="1080" height="390" fill="url(#topShade)"/>
-    <rect y="820" width="1080" height="1100" fill="url(#bottomShade)"/>
-    <rect y="820" width="1080" height="1100" fill="url(#spot)"/>
-    <rect x="68" y="74" width="514" height="118" rx="20" fill="rgba(16,24,40,0.50)"/>
-    <rect x="82" y="96" width="7" height="74" rx="4" fill="#7285f4"/>
-    ${hasLogo ? "" : svgTextPath("GOSTIVARPRESS", 112, 144, 42, "brand", { weight: "bold", filter: "url(#shadow)" })}
-    <rect x="112" y="210" width="130" height="8" rx="4" fill="#7285f4"/>
-    <rect x="${categoryX}" y="1040" width="${categoryWidth}" height="58" rx="10" fill="#7285f4" opacity="0.98"/>
-    ${svgTextPath(categoryText, categoryX + 20, 1078, 27, "meta", { weight: "bold" })}
-    ${svgTextPath(dateText, categoryX + categoryWidth + 28, 1078, 31, "date", { weight: "bold" })}
+    <rect y="770" width="1080" height="1150" fill="url(#bottomShade)"/>
+    <rect y="770" width="1080" height="1150" fill="url(#spot)"/>
+    ${hasLogo ? "" : svgTextPath("GOSTIVARPRESS", 86, 170, 58, "brand", { weight: "bold", filter: "url(#shadow)" })}
+    <rect x="${categoryX}" y="1036" width="${categoryWidth}" height="58" rx="10" fill="#7285f4" opacity="0.98"/>
+    ${svgTextPath(categoryText, categoryX + 20, 1076, 29, "meta", { weight: "bold" })}
+    ${svgTextPath(dateText, categoryX + categoryWidth + 28, 1077, 34, "date", { weight: "bold" })}
     <rect x="86" y="${titleY - 58}" width="7" height="${Math.max(176, titleBlockHeight + 24)}" rx="4" fill="#7285f4"/>
     ${titleLines || svgTextPath(item.title, 128, titleY, 68, "title", { weight: "bold" })}
     <circle cx="112" cy="1780" r="24" fill="none" stroke="#7285f4" stroke-width="6"/>
     <rect x="126" y="1770" width="34" height="6" rx="3" fill="#7285f4" transform="rotate(-35 126 1770)"/>
-    ${svgTextPath("Повеќе на", 174, 1794, 34, "footerLight", { weight: "regular" })}
-    ${svgTextPath("gostivarpress.mk", 362, 1794, 34, "footerAccent", { weight: "bold" })}
+    ${svgTextPath("Повеќе на", 174, 1794, 36, "footerLight", { weight: "regular" })}
+    ${svgTextPath("gostivarpress.mk", 362, 1794, 36, "footerAccent", { weight: "bold" })}
   </svg>`;
 }
-
 async function loadLogoComposite() {
   try {
     let buffer = null;
@@ -394,15 +389,15 @@ async function loadLogoComposite() {
     if (!buffer) return null;
 
     const input = await sharp(buffer)
-      .resize({ width: 540, height: 120, fit: "inside", withoutEnlargement: true })
+      .resize({ width: 430, height: 110, fit: "inside", withoutEnlargement: true })
       .png()
       .toBuffer();
     const meta = await sharp(input).metadata();
 
     return {
       input,
-      left: 112,
-      top: Math.round(98 + (72 - Math.min(meta.height || 72, 72)) / 2)
+      left: 86,
+      top: Math.round(96 + (88 - Math.min(meta.height || 88, 88)) / 2)
     };
   } catch (error) {
     logError("logo", error);
@@ -840,3 +835,4 @@ function logError(scope, error) {
   const message = error?.message || String(error);
   console.error(`[${new Date().toISOString()}] [${scope}:error] ${message}`);
 }
+
