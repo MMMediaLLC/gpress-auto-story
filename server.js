@@ -31,6 +31,9 @@ const PUBLISHED_FILE = path.join(DATA_DIR, "published.json");
 const TOKEN_FILE = path.join(DATA_DIR, "token.json");
 let storedToken = loadStoredToken();
 const LOCAL_LOGO_PATH = path.join(PUBLIC_DIR, "logo.png");
+const PROMO_EXPORTS_DIR = path.join(ROOT_DIR, "exports", "promo");
+const promoWordpress = require("./src/promo/wordpress");
+const promoExport = require("./src/promo/exportPromoPackage");
 const FONT_REGULAR_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Regular.ttf");
 const FONT_BOLD_PATH = path.join(PUBLIC_DIR, "fonts", "NotoSans-Bold.ttf");
 
@@ -84,6 +87,43 @@ const server = http.createServer(async (req, res) => {
 
     if (requestUrl.pathname.startsWith("/cards/")) {
       return serveCardFile(res, requestUrl.pathname);
+    }
+
+    if (requestUrl.pathname === "/promo" && req.method === "GET") {
+      return sendHtml(res, renderPromoHome());
+    }
+
+    if (requestUrl.pathname === "/promo/generate" && req.method === "POST") {
+      const form = await readFormBody(req);
+      const postUrl = String(form.get("url") || "").trim();
+      if (!postUrl) return sendHtml(res, renderPromoHome("Внеси линк до објавата."));
+      const post = await promoWordpress.fetchPostByUrl(postUrl);
+      await promoExport.exportPromoPackage(post);
+      return redirect(res, `/promo/${post.slug}`);
+    }
+
+    const promoAssetMatch = requestUrl.pathname.match(/^\/promo-assets\/([a-z0-9-]+)\/(\d{2}-[a-z0-9-]+\.png)$/i);
+    if (promoAssetMatch) {
+      return servePromoAsset(res, promoAssetMatch[1], promoAssetMatch[2]);
+    }
+
+    const promoSaveMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/save$/i);
+    if (promoSaveMatch && req.method === "POST") {
+      const form = await readFormBody(req);
+      await savePromoDataAndRegenerate(promoSaveMatch[1], form);
+      return redirect(res, `/promo/${promoSaveMatch[1]}`);
+    }
+
+    const promoPublishMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/publish$/i);
+    if (promoPublishMatch && req.method === "POST") {
+      const form = await readFormBody(req);
+      const result = await publishPromoSet(promoPublishMatch[1], form.get("again") === "1");
+      return sendHtml(res, renderPromoPublishResult(promoPublishMatch[1], result));
+    }
+
+    const promoDetailMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)$/i);
+    if (promoDetailMatch && req.method === "GET") {
+      return sendHtml(res, renderPromoDetail(promoDetailMatch[1]));
     }
 
     if (requestUrl.pathname === "/" && req.method === "GET") {
@@ -656,6 +696,283 @@ function assetDataUri(filePath, mimeType) {
     return "";
   }
 }
+function readFormBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => {
+      body += chunk;
+      if (body.length > 1_000_000) {
+        reject(new Error("Request body too large."));
+        req.destroy();
+      }
+    });
+    req.on("end", () => resolve(new URLSearchParams(body)));
+    req.on("error", reject);
+  });
+}
+
+function redirect(res, location) {
+  res.writeHead(302, { location });
+  res.end();
+}
+
+function promoSlugDir(slug) {
+  if (!/^[a-z0-9-]+$/i.test(slug)) throw new Error("Invalid promo slug.");
+  return path.join(PROMO_EXPORTS_DIR, slug);
+}
+
+function readPromoSidecar(slug) {
+  const sidecarPath = path.join(promoSlugDir(slug), "promo-data.json");
+  if (!fss.existsSync(sidecarPath)) return null;
+  return JSON.parse(fss.readFileSync(sidecarPath, "utf8"));
+}
+
+function readPromoPublishLog(slug) {
+  const logPath = path.join(promoSlugDir(slug), "publish-log.json");
+  if (!fss.existsSync(logPath)) return null;
+  try {
+    return JSON.parse(fss.readFileSync(logPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+async function savePromoDataAndRegenerate(slug, form) {
+  const sidecar = readPromoSidecar(slug);
+  if (!sidecar) throw new Error("Promo set not found. Generate it first.");
+
+  const textFields = [
+    "business_name", "promo_subtype", "short_intro", "address",
+    "working_hours", "phone", "instagram", "facebook", "maps_link"
+  ];
+  for (const field of textFields) {
+    if (form.has(field)) sidecar[field] = String(form.get(field) || "").trim();
+  }
+  if (form.has("offer_items")) {
+    sidecar.offer_items = String(form.get("offer_items") || "")
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+  if (form.has("hero_image")) {
+    const hero = String(form.get("hero_image") || "").trim();
+    sidecar.selected_images = hero ? [hero] : [];
+  }
+
+  const exportDir = promoSlugDir(slug);
+  await fs.writeFile(path.join(exportDir, "promo-data.json"), `${JSON.stringify(sidecar, null, 2)}\n`, "utf8");
+
+  const post = await promoWordpress.fetchPostByUrl(sidecar.article_url);
+  await promoExport.exportPromoPackage(post, { exportDir });
+}
+
+async function publishPromoSet(slug, publishAgain) {
+  const exportDir = promoSlugDir(slug);
+  const sidecar = readPromoSidecar(slug);
+  if (!sidecar) return { ok: false, error: "Promo сетот не постои." };
+
+  if (!IG_USER_ID || !currentAccessToken()) {
+    return { ok: false, error: "Недостасуваат IG_USER_ID / IG_ACCESS_TOKEN на серверот." };
+  }
+
+  const existingLog = readPromoPublishLog(slug);
+  if (existingLog && !publishAgain) {
+    return { ok: false, error: `Овој сет е веќе објавен на ${existingLog.publishedAt}. Кликни „Објави повторно" ако намерно сакаш пак.` };
+  }
+
+  const storyFiles = ["01-story-novo-vo-gostivar.png", "02-story-sto-nudi.png", "03-story-lokacija-kontakt.png"];
+  for (const file of storyFiles) {
+    if (!fss.existsSync(path.join(exportDir, file))) {
+      return { ok: false, error: `Недостасува ${file} — регенерирај го сетот прво.` };
+    }
+  }
+
+  const results = [];
+  for (const file of storyFiles) {
+    const imageUrl = `${PUBLIC_BASE_URL}/promo-assets/${slug}/${file}`;
+    const container = await graphPost(`https://graph.instagram.com/v23.0/${encodeURIComponent(IG_USER_ID)}/media`, {
+      media_type: "STORIES",
+      image_url: imageUrl,
+      access_token: currentAccessToken()
+    });
+    if (!container.id) throw new Error(`Instagram не врати container id за ${file}.`);
+    await waitForContainerReady(container.id);
+    const published = await graphPost(`https://graph.instagram.com/v23.0/${encodeURIComponent(IG_USER_ID)}/media_publish`, {
+      creation_id: container.id,
+      access_token: currentAccessToken()
+    });
+    if (!published.id) throw new Error(`Instagram не врати story id за ${file}.`);
+    results.push({ file, storyId: published.id });
+    logInfo("promo-publish", `${slug} ${file} -> ${published.id}`);
+  }
+
+  const log = { publishedAt: new Date().toISOString(), slug, stories: results };
+  await fs.writeFile(path.join(exportDir, "publish-log.json"), `${JSON.stringify(log, null, 2)}\n`, "utf8");
+  return { ok: true, ...log };
+}
+
+async function servePromoAsset(res, slug, filename) {
+  try {
+    const data = await fs.readFile(path.join(promoSlugDir(slug), filename));
+    res.writeHead(200, { "content-type": "image/png", "cache-control": "no-store, max-age=0" });
+    res.end(data);
+  } catch (error) {
+    if (error.code === "ENOENT") return sendJson(res, 404, { ok: false, error: "Asset not found." });
+    throw error;
+  }
+}
+
+const PROMO_PAGE_CSS = `
+    :root { color-scheme: light; --accent: #7285f4; --ink: #111827; --muted: #667085; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Arial, "Helvetica Neue", sans-serif; background: #f4f6fb; color: var(--ink); }
+    .wrap { max-width: 1080px; margin: 0 auto; padding: 30px 22px 60px; }
+    h1 { margin: 0 0 6px; font-size: clamp(26px, 4vw, 38px); }
+    h2 { margin: 26px 0 12px; font-size: 20px; }
+    .sub { color: var(--muted); margin-bottom: 20px; }
+    .panel { background: #fff; border: 1px solid #e6e8ef; border-radius: 14px; padding: 18px; margin-bottom: 16px; box-shadow: 0 12px 30px rgba(17,24,39,0.06); }
+    label { display: block; font-size: 13px; font-weight: 800; color: #344054; margin: 12px 0 4px; text-transform: uppercase; letter-spacing: .4px; }
+    input[type=text], input[type=url], textarea { width: 100%; padding: 10px 12px; border: 1px solid #d7dbe6; border-radius: 8px; font-size: 15px; font-family: inherit; }
+    textarea { min-height: 90px; }
+    .button { display: inline-flex; align-items: center; min-height: 40px; padding: 0 18px; border: 0; border-radius: 9px; background: var(--accent); color: #fff; font-weight: 900; font-size: 15px; cursor: pointer; text-decoration: none; }
+    .button.dark { background: #101827; }
+    .button.danger { background: #dc2626; }
+    .button.ghost { background: #eef1ff; color: #3442ad; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
+    .cards figure { margin: 0; }
+    .cards img { width: 100%; border-radius: 10px; border: 1px solid #e6e8ef; display: block; }
+    .cards figcaption { font-size: 12px; color: var(--muted); margin-top: 6px; text-align: center; }
+    .row-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; align-items: center; }
+    .note { font-size: 13px; color: var(--muted); }
+    .ok { color: #087443; font-weight: 800; }
+    .warn { color: #b54708; font-weight: 800; }
+    pre { background: #f8f9fd; border: 1px solid #e6e8ef; border-radius: 8px; padding: 12px; font-size: 13px; white-space: pre-wrap; }
+    a.back { color: var(--muted); text-decoration: none; font-weight: 700; }
+`;
+
+function listPromoSets() {
+  if (!fss.existsSync(PROMO_EXPORTS_DIR)) return [];
+  return fss.readdirSync(PROMO_EXPORTS_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const slug = entry.name;
+      let name = slug;
+      try {
+        name = readPromoSidecar(slug)?.business_name || slug;
+      } catch {}
+      return { slug, name, published: Boolean(readPromoPublishLog(slug)) };
+    });
+}
+
+function renderPromoHome(message = "") {
+  const sets = listPromoSets();
+  const rows = sets.map((set) => `
+    <div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+      <div>
+        <strong>${escapeHtml(set.name)}</strong>
+        <div class="note">${escapeHtml(set.slug)} · ${set.published ? '<span class="ok">објавено</span>' : '<span class="warn">необјавено</span>'}</div>
+      </div>
+      <a class="button ghost" href="/promo/${escapeHtml(set.slug)}">Отвори</a>
+    </div>`).join("");
+
+  return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>GPress Promo</title><style>${PROMO_PAGE_CSS}</style></head>
+<body><div class="wrap">
+  <h1>GPress Promo</h1>
+  <div class="sub">Промо пакети за клиенти — генерирај, прегледај, измени, па објави рачно. <a class="back" href="/">← кон вестите</a></div>
+  ${message ? `<div class="panel warn">${escapeHtml(message)}</div>` : ""}
+  <div class="panel">
+    <form method="post" action="/promo/generate">
+      <label>Линк до WordPress објавата</label>
+      <input type="url" name="url" placeholder="https://gostivarpress.mk/..." required>
+      <div class="row-actions">
+        <button class="button" type="submit">Генерирај промо сет</button>
+        <span class="note">Генерирањето НЕ објавува ништо — само прави преглед.</span>
+      </div>
+    </form>
+  </div>
+  <h2>Постоечки сетови</h2>
+  ${rows || '<div class="note">Сè уште нема генерирани промо сетови.</div>'}
+</div></body></html>`;
+}
+
+function renderPromoDetail(slug) {
+  const sidecar = readPromoSidecar(slug);
+  if (!sidecar) return renderNotFoundPage("Promo сетот не постои. Генерирај го прво од /promo.");
+
+  const exportDir = promoSlugDir(slug);
+  const publishLog = readPromoPublishLog(slug);
+  const imageFiles = ["01-story-novo-vo-gostivar.png", "02-story-sto-nudi.png", "03-story-lokacija-kontakt.png", "04-feed-4x5.png", "05-facebook-1x1.png"]
+    .filter((file) => fss.existsSync(path.join(exportDir, file)));
+  const bust = Date.now();
+  const figures = imageFiles.map((file) => `
+    <figure>
+      <a href="/promo-assets/${escapeHtml(slug)}/${escapeHtml(file)}" target="_blank" rel="noopener"><img src="/promo-assets/${escapeHtml(slug)}/${escapeHtml(file)}?t=${bust}" alt=""></a>
+      <figcaption>${escapeHtml(file)}</figcaption>
+    </figure>`).join("");
+
+  const captions = ["caption-facebook.txt", "caption-instagram.txt", "caption-telegram.txt"]
+    .filter((file) => fss.existsSync(path.join(exportDir, file)))
+    .map((file) => `<h2>${escapeHtml(file.replace("caption-", "").replace(".txt", ""))}</h2><pre>${escapeHtml(fss.readFileSync(path.join(exportDir, file), "utf8"))}</pre>`)
+    .join("");
+
+  const field = (name, label, value) => `<label>${escapeHtml(label)}</label><input type="text" name="${name}" value="${escapeHtml(value || "")}">`;
+
+  return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(sidecar.business_name || slug)} · GPress Promo</title><style>${PROMO_PAGE_CSS}</style></head>
+<body><div class="wrap">
+  <a class="back" href="/promo">← сите промо сетови</a>
+  <h1>${escapeHtml(sidecar.business_name || slug)}</h1>
+  <div class="sub">${escapeHtml(sidecar.article_url || "")}</div>
+  ${publishLog ? `<div class="panel"><span class="ok">Објавено на Instagram: ${escapeHtml(publishLog.publishedAt)}</span></div>` : ""}
+
+  <h2>Преглед на картичките</h2>
+  <div class="cards">${figures}</div>
+
+  <h2>Измени податоци</h2>
+  <div class="panel">
+    <form method="post" action="/promo/${escapeHtml(slug)}/save">
+      ${field("business_name", "Име на бизнис / наслов", sidecar.business_name)}
+      <label>Краток опис</label><textarea name="short_intro">${escapeHtml(sidecar.short_intro || "")}</textarea>
+      <label>Понуда (една ставка по ред, 3-5 ставки)</label><textarea name="offer_items">${escapeHtml((sidecar.offer_items || []).join("\n"))}</textarea>
+      ${field("address", "Адреса", sidecar.address)}
+      ${field("working_hours", "Работно време", sidecar.working_hours)}
+      ${field("phone", "Телефон", sidecar.phone)}
+      ${field("instagram", "Instagram", sidecar.instagram)}
+      ${field("facebook", "Facebook", sidecar.facebook)}
+      ${field("hero_image", "Главна фотографија (URL)", (sidecar.selected_images || [])[0])}
+      <div class="row-actions">
+        <button class="button dark" type="submit">Зачувај и регенерирај</button>
+        <span class="note">Регенерирањето ги преправа сликите — сè уште ништо не се објавува.</span>
+      </div>
+    </form>
+  </div>
+
+  ${captions}
+
+  <h2>Објавување</h2>
+  <div class="panel">
+    <form method="post" action="/promo/${escapeHtml(slug)}/publish" onsubmit="return confirm('Сигурно? Ова ВЕДНАШ објавува 3 стории на Instagram профилот.');">
+      ${publishLog ? '<input type="hidden" name="again" value="1">' : ""}
+      <div class="row-actions">
+        <button class="button ${publishLog ? "danger" : ""}" type="submit">${publishLog ? "Објави повторно (3 стории)" : "Одобри и објави 3 стории на Instagram"}</button>
+        <span class="note">Story 1 → Story 2 → Story 3, по ред. Feed/square картичките и caption текстовите се за рачна употреба.</span>
+      </div>
+    </form>
+  </div>
+</div></body></html>`;
+}
+
+function renderPromoPublishResult(slug, result) {
+  const body = result.ok
+    ? `<div class="panel"><span class="ok">Успешно објавени ${result.stories.length} стории.</span><pre>${escapeHtml(JSON.stringify(result.stories, null, 2))}</pre></div>`
+    : `<div class="panel"><span class="warn">${escapeHtml(result.error)}</span></div>`;
+  return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Објавување · GPress Promo</title><style>${PROMO_PAGE_CSS}</style></head>
+<body><div class="wrap">
+  <a class="back" href="/promo/${escapeHtml(slug)}">← назад кон сетот</a>
+  <h1>Објавување</h1>
+  ${body}
+</div></body></html>`;
+}
+
 function renderNotFoundPage(message = "Not found") {
   return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Not found</title></head><body style="font-family:Arial,sans-serif;padding:32px"><h1>${escapeHtml(message)}</h1><p><a href="/">Назад</a></p></body></html>`;
 }
