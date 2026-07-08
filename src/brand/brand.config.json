@@ -1,0 +1,32 @@
+{
+  "brandName": "Gostivarpress.mk",
+  "primaryColor": "#7285F4",
+  "darkColor": "#0B1220",
+  "darkColorSoft": "#141D36",
+  "promoLabel": "Промотивно",
+  "footerText": "Gostivarpress.mk",
+  "story": {
+    "width": 1080,
+    "height": 1920,
+    "safeTop": 220,
+    "safeBottom": 220,
+    "sideMargin": 84
+  },
+  "feed": {
+    "width": 1080,
+    "height": 1350
+  },
+  "square": {
+    "width": 1080,
+    "height": 1080
+  },
+  "typography": {
+    "fontFamily": "GPressSans, Arial, sans-serif",
+    "titleWeight": 900,
+    "bodyWeight": 700,
+    "maxTitleChars": 70,
+    "maxIntroChars": 170,
+    "maxOfferItemChars": 70,
+    "maxOfferItems": 5
+  }
+}

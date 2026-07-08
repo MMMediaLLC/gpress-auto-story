@@ -10,3 +10,4 @@ outputs/
 .codex/
 *.log
 .ms-playwright/
+exports/
