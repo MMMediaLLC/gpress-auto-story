@@ -24,7 +24,7 @@
     "fontFamily": "GPressSans, Arial, sans-serif",
     "titleWeight": 900,
     "bodyWeight": 700,
-    "maxTitleChars": 70,
+    "maxTitleChars": 87,
     "maxIntroChars": 170,
     "maxOfferItemChars": 70,
     "maxOfferItems": 5

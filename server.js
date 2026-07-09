@@ -121,6 +121,11 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, `/promo/${promoUploadMatch[1]}`);
     }
 
+    const promoZipMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/download\.zip$/i);
+    if (promoZipMatch && req.method === "GET") {
+      return servePromoZip(res, promoZipMatch[1]);
+    }
+
     const promoStatusMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/status$/i);
     if (promoStatusMatch && req.method === "POST") {
       const form = await readFormBody(req);
@@ -932,6 +937,98 @@ async function publishPromoSet(slug, publishAgain) {
   return { ok: true, ...log };
 }
 
+function crc32(buffer) {
+  let crc = 0xffffffff;
+  for (let i = 0; i < buffer.length; i++) {
+    let c = (crc ^ buffer[i]) & 0xff;
+    for (let k = 0; k < 8; k++) c = c & 1 ? (c >>> 1) ^ 0xedb88320 : c >>> 1;
+    crc = (crc >>> 8) ^ c;
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function buildZip(entries) {
+  const now = new Date();
+  const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | Math.floor(now.getSeconds() / 2);
+  const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  for (const { name, data } of entries) {
+    const nameBuffer = Buffer.from(name, "utf8");
+    const checksum = crc32(data);
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0x0800, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt16LE(dosTime, 10);
+    local.writeUInt16LE(dosDate, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(nameBuffer.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, nameBuffer, data);
+
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0x0800, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt16LE(dosTime, 12);
+    central.writeUInt16LE(dosDate, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(nameBuffer.length, 28);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, nameBuffer);
+
+    offset += 30 + nameBuffer.length + data.length;
+  }
+
+  const centralStart = offset;
+  const centralBuffer = Buffer.concat(centralParts);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt16LE(entries.length, 8);
+  end.writeUInt16LE(entries.length, 10);
+  end.writeUInt32LE(centralBuffer.length, 12);
+  end.writeUInt32LE(centralStart, 16);
+  return Buffer.concat([...localParts, centralBuffer, end]);
+}
+
+async function servePromoZip(res, slug) {
+  const exportDir = promoSlugDir(slug);
+  if (!fss.existsSync(exportDir)) return sendJson(res, 404, { ok: false, error: "Promo set not found." });
+
+  const filenames = [
+    "01-story-novo-vo-gostivar.png", "02-story-sto-nudi.png", "03-story-lokacija-kontakt.png",
+    "04-feed-4x5.png", "05-facebook-1x1.png",
+    "caption-facebook.txt", "caption-instagram.txt", "caption-telegram.txt",
+    "link.txt", "promo-data.json"
+  ].filter((file) => fss.existsSync(path.join(exportDir, file)));
+
+  if (!filenames.length) return sendJson(res, 404, { ok: false, error: "Нема генерирани фајлови — регенерирај прво." });
+
+  const entries = filenames.map((file) => ({
+    name: `${slug}/${file}`,
+    data: fss.readFileSync(path.join(exportDir, file))
+  }));
+
+  const zip = buildZip(entries);
+  res.writeHead(200, {
+    "content-type": "application/zip",
+    "content-disposition": `attachment; filename="promo-${slug}.zip"`,
+    "content-length": zip.length,
+    "cache-control": "no-store"
+  });
+  res.end(zip);
+}
+
 async function servePromoAsset(res, slug, filename) {
   try {
     const data = await fs.readFile(path.join(promoSlugDir(slug), filename));
@@ -1096,6 +1193,15 @@ function renderPromoDetail(slug) {
         <select name="img_${cardKey}_source">${imageSourceOptions(config)}</select>
         <label>URL на слика (само ако изворот е URL)</label>
         <input type="text" name="img_${cardKey}_url" value="${escapeHtml(config.url || "")}" placeholder="https://...">
+        <label>Брзо позиционирање</label>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:4px;">
+          <button type="button" class="button ghost" onclick="gpPos('${cardKey}',50,50)">Центар</button>
+          <button type="button" class="button ghost" onclick="gpPos('${cardKey}',50,18)">Горе</button>
+          <button type="button" class="button ghost" onclick="gpPos('${cardKey}',50,82)">Долу</button>
+          <button type="button" class="button ghost" onclick="gpPos('${cardKey}',22,50)">Лево</button>
+          <button type="button" class="button ghost" onclick="gpPos('${cardKey}',78,50)">Десно</button>
+          <button type="button" class="button ghost" onclick="gpPos('${cardKey}',50,50);gpZoom('${cardKey}',1)">Ресетирај</button>
+        </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
           <div><label>Позиција X % (0-100)</label><input type="number" name="img_${cardKey}_x" min="0" max="100" step="1" value="${Number(config.x) || 50}"></div>
           <div><label>Позиција Y % (0-100)</label><input type="number" name="img_${cardKey}_y" min="0" max="100" step="1" value="${Number(config.y) || 50}"></div>
@@ -1190,6 +1296,7 @@ function renderPromoDetail(slug) {
 
   <h2>Download / Export</h2>
   <div class="panel">
+    <div style="margin-bottom:10px;"><a class="button" href="/promo/${escapeHtml(slug)}/download.zip">Симни цел пакет (ZIP)</a></div>
     ${downloads || '<span class="note">Уште нема генерирани фајлови.</span>'}
     <div class="note" style="margin-top:8px;">Фолдер на серверот: exports/promo/${escapeHtml(slug)}/</div>
   </div>
@@ -1214,6 +1321,15 @@ function renderPromoDetail(slug) {
       </div>
     </form>
   </div>
+  <script>
+    function gpPos(card, x, y) {
+      document.querySelector('[name="img_' + card + '_x"]').value = x;
+      document.querySelector('[name="img_' + card + '_y"]').value = y;
+    }
+    function gpZoom(card, zoom) {
+      document.querySelector('[name="img_' + card + '_zoom"]').value = zoom;
+    }
+  </script>
 </div></body></html>`;
 }
 

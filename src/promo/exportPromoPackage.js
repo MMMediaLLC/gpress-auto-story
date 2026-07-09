@@ -47,11 +47,11 @@ function promoDataSkeleton(post) {
     story2_heading: "Што нуди?",
     offer_items: post.listItems.slice(0, BRAND.typography.maxOfferItems),
     story3_heading: "Локација и контакт",
-    address: "",
-    working_hours: "",
-    phone: "",
-    instagram: "",
-    facebook: "",
+    address: post.contacts?.address || "",
+    working_hours: post.contacts?.working_hours || "",
+    phone: post.contacts?.phone || "",
+    instagram: post.contacts?.instagram || "",
+    facebook: post.contacts?.facebook || "",
     maps_link: "",
     article_url: post.link,
     post_images: images,
@@ -72,6 +72,12 @@ function migratePromoData(sidecar, post) {
   const merged = { ...skeleton, ...sidecar };
 
   if (!sidecar.story1_description && sidecar.short_intro) merged.story1_description = sidecar.short_intro;
+  for (const field of ["address", "working_hours", "phone", "instagram", "facebook"]) {
+    if (!merged[field] && skeleton[field]) merged[field] = skeleton[field];
+  }
+  if ((!merged.offer_items || !merged.offer_items.length) && skeleton.offer_items.length) {
+    merged.offer_items = skeleton.offer_items;
+  }
   merged.post_images = skeleton.post_images;
   merged.colors = { ...skeleton.colors, ...(sidecar.colors || {}) };
   merged.images = {};

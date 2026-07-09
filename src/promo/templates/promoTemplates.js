@@ -53,7 +53,8 @@ function heroShade(colors, strength) {
 
 function flatShade(colors, strength) {
   const o = colors.overlay;
-  return `background: linear-gradient(180deg, ${hexToRgba(o, Math.min(0.97, 0.74 * strength))} 0%, ${hexToRgba(o, Math.min(0.97, 0.82 * strength))} 45%, ${hexToRgba(o, Math.min(0.99, 0.95 * strength))} 100%);`;
+  const s = strength * 0.9;
+  return `background: linear-gradient(180deg, ${hexToRgba(o, Math.min(0.97, 0.74 * s))} 0%, ${hexToRgba(o, Math.min(0.97, 0.82 * s))} 45%, ${hexToRgba(o, Math.min(0.99, 0.95 * s))} 100%);`;
 }
 
 function baseHead(widthPx, heightPx, colors, extraCss) {
@@ -85,7 +86,7 @@ function story1Html(data) {
 .top { position: absolute; top: 118px; left: 42px; z-index: 3; }
 .content { position: absolute; left: 42px; right: 42px; bottom: 130px; z-index: 3; }
 .kicker { color: ${colors.accent}; font-size: 19px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 16px; }
-h1 { margin: 0 0 18px; font-size: ${data.businessName.length <= 26 ? 42 : 34}px; line-height: 1.1; font-weight: 900; text-wrap: balance; text-shadow: 0 2px 20px rgba(0,0,0,.4); }
+h1 { margin: 0 0 18px; font-size: ${data.businessName.length <= 26 ? 42 : data.businessName.length <= 55 ? 34 : 28}px; line-height: 1.1; font-weight: 900; text-wrap: balance; text-shadow: 0 2px 20px rgba(0,0,0,.4); }
 .intro { max-width: 420px; font-size: 19px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,.85); }
 `)}
 <main class="card">
@@ -186,7 +187,7 @@ function feedCardHtml(data) {
 .photo img { width: 100%; height: 100%; display: block; }
 .photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, ${hexToRgba(colors.overlay, 0)} 55%, ${colors.overlay} 100%); }
 .panel { position: absolute; left: 34px; right: 34px; bottom: 58px; z-index: 3; }
-h1 { margin: 12px 0 10px; font-size: 30px; line-height: 1.14; font-weight: 900; text-wrap: balance; }
+h1 { margin: 12px 0 10px; font-size: ${data.businessName.length <= 55 ? 30 : 24}px; line-height: 1.14; font-weight: 900; text-wrap: balance; }
 .intro { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,.8); }
 .logo { top: 14px; right: 16px; width: 96px; }
 `)}
@@ -208,7 +209,7 @@ function squareCardHtml(data) {
   return `${baseHead(540, 540, colors, `
 .shade { ${img.src ? heroShade(colors, img.overlay) : ""} }
 .content { position: absolute; left: 36px; right: 36px; bottom: 66px; z-index: 3; }
-h1 { margin: 12px 0 10px; font-size: 30px; line-height: 1.14; font-weight: 900; text-wrap: balance; }
+h1 { margin: 12px 0 10px; font-size: ${data.businessName.length <= 55 ? 30 : 24}px; line-height: 1.14; font-weight: 900; text-wrap: balance; }
 .intro { margin: 0 0 18px; font-size: 15px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,.82); }
 .cta { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 16px; border-radius: 999px; background: ${colors.primary}; color: #fff; font-size: 14px; font-weight: 900; }
 .logo { top: 14px; right: 16px; width: 96px; }
