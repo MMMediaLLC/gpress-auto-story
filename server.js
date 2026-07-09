@@ -102,7 +102,7 @@ const server = http.createServer(async (req, res) => {
       return redirect(res, `/promo/${post.slug}`);
     }
 
-    const promoAssetMatch = requestUrl.pathname.match(/^\/promo-assets\/([a-z0-9-]+)\/(\d{2}-[a-z0-9-]+\.png)$/i);
+    const promoAssetMatch = requestUrl.pathname.match(/^\/promo-assets\/([a-z0-9-]+)\/((?:uploads\/)?[a-z0-9._-]+\.(?:png|jpe?g|webp|txt))$/i);
     if (promoAssetMatch) {
       return servePromoAsset(res, promoAssetMatch[1], promoAssetMatch[2]);
     }
@@ -112,6 +112,20 @@ const server = http.createServer(async (req, res) => {
       const form = await readFormBody(req);
       await savePromoDataAndRegenerate(promoSaveMatch[1], form);
       return redirect(res, `/promo/${promoSaveMatch[1]}`);
+    }
+
+    const promoUploadMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/upload$/i);
+    if (promoUploadMatch && req.method === "POST") {
+      const upload = await readMultipartFile(req);
+      await savePromoUpload(promoUploadMatch[1], upload);
+      return redirect(res, `/promo/${promoUploadMatch[1]}`);
+    }
+
+    const promoStatusMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/status$/i);
+    if (promoStatusMatch && req.method === "POST") {
+      const form = await readFormBody(req);
+      await setPromoStatus(promoStatusMatch[1], String(form.get("status") || ""));
+      return redirect(res, `/promo/${promoStatusMatch[1]}`);
     }
 
     const promoPublishMatch = requestUrl.pathname.match(/^\/promo\/([a-z0-9-]+)\/publish$/i);
@@ -737,13 +751,22 @@ function readPromoPublishLog(slug) {
   }
 }
 
+const PROMO_CARD_LABELS = {
+  story1: "Story 1 — Ново во Гостивар",
+  story2: "Story 2 — Што нуди",
+  story3: "Story 3 — Локација и контакт",
+  feed: "Feed картичка 4:5",
+  square: "Facebook квадрат 1:1"
+};
+
 async function savePromoDataAndRegenerate(slug, form) {
   const sidecar = readPromoSidecar(slug);
   if (!sidecar) throw new Error("Promo set not found. Generate it first.");
 
   const textFields = [
-    "business_name", "promo_subtype", "short_intro", "address",
-    "working_hours", "phone", "instagram", "facebook", "maps_link"
+    "business_name", "badge_text", "story1_heading", "story1_description",
+    "story2_heading", "story3_heading", "address", "working_hours",
+    "phone", "instagram", "facebook", "maps_link"
   ];
   for (const field of textFields) {
     if (form.has(field)) sidecar[field] = String(form.get(field) || "").trim();
@@ -754,9 +777,32 @@ async function savePromoDataAndRegenerate(slug, form) {
       .map((line) => line.trim())
       .filter(Boolean);
   }
-  if (form.has("hero_image")) {
-    const hero = String(form.get("hero_image") || "").trim();
-    sidecar.selected_images = hero ? [hero] : [];
+
+  if (form.has("status") && promoExport.PROMO_STATUSES.includes(form.get("status"))) {
+    sidecar.status = form.get("status");
+  }
+  if (form.has("theme") && Object.keys(promoExport.THEMES).includes(form.get("theme"))) {
+    sidecar.theme = form.get("theme");
+  }
+  sidecar.colors = sidecar.colors || {};
+  for (const colorKey of ["primary", "secondary", "accent", "overlay", "badge"]) {
+    const value = String(form.get(`color_${colorKey}`) || "").trim();
+    if (/^#[0-9a-f]{6}$/i.test(value)) sidecar.colors[colorKey] = value.toUpperCase();
+  }
+
+  sidecar.images = sidecar.images || {};
+  for (const cardKey of promoExport.CARD_KEYS) {
+    const current = sidecar.images[cardKey] || {};
+    const source = String(form.get(`img_${cardKey}_source`) || current.source || "featured");
+    sidecar.images[cardKey] = {
+      source,
+      url: String(form.get(`img_${cardKey}_url`) || current.url || "").trim(),
+      x: Number(form.get(`img_${cardKey}_x`) ?? current.x ?? 50),
+      y: Number(form.get(`img_${cardKey}_y`) ?? current.y ?? 50),
+      zoom: Number(form.get(`img_${cardKey}_zoom`) ?? current.zoom ?? 1),
+      overlay: Number(form.get(`img_${cardKey}_overlay`) ?? current.overlay ?? 1),
+      fit: form.get(`img_${cardKey}_fit`) === "contain" ? "contain" : "cover"
+    };
   }
 
   const exportDir = promoSlugDir(slug);
@@ -764,6 +810,80 @@ async function savePromoDataAndRegenerate(slug, form) {
 
   const post = await promoWordpress.fetchPostByUrl(sidecar.article_url);
   await promoExport.exportPromoPackage(post, { exportDir });
+}
+
+async function setPromoStatus(slug, status) {
+  const sidecar = readPromoSidecar(slug);
+  if (!sidecar) throw new Error("Promo set not found.");
+  if (!promoExport.PROMO_STATUSES.includes(status)) throw new Error("Invalid status.");
+  sidecar.status = status;
+  await fs.writeFile(path.join(promoSlugDir(slug), "promo-data.json"), `${JSON.stringify(sidecar, null, 2)}\n`, "utf8");
+}
+
+async function savePromoUpload(slug, upload) {
+  const uploadsDir = path.join(promoSlugDir(slug), "uploads");
+  await fs.mkdir(uploadsDir, { recursive: true });
+  const extension = (upload.filename.match(/\.(png|jpe?g|webp)$/i) || [])[0];
+  if (!extension) throw new Error("Дозволени се само PNG, JPG и WEBP слики.");
+  const base = upload.filename
+    .replace(/\.(png|jpe?g|webp)$/i, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40) || "slika";
+  const filename = `${base}-${Date.now()}${extension.toLowerCase()}`;
+  await fs.writeFile(path.join(uploadsDir, filename), upload.buffer);
+  return filename;
+}
+
+function listPromoUploads(slug) {
+  const uploadsDir = path.join(promoSlugDir(slug), "uploads");
+  if (!fss.existsSync(uploadsDir)) return [];
+  return fss.readdirSync(uploadsDir).filter((file) => /\.(png|jpe?g|webp)$/i.test(file));
+}
+
+function readRawBody(req, limit) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let total = 0;
+    req.on("data", (chunk) => {
+      total += chunk.length;
+      if (total > limit) {
+        reject(new Error("Фајлот е преголем (максимум 15 MB)."));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => resolve(Buffer.concat(chunks)));
+    req.on("error", reject);
+  });
+}
+
+async function readMultipartFile(req) {
+  const contentType = String(req.headers["content-type"] || "");
+  const boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^;]+))/);
+  if (!boundaryMatch) throw new Error("Missing multipart boundary.");
+  const boundary = Buffer.from(`--${boundaryMatch[1] || boundaryMatch[2]}`);
+  const body = await readRawBody(req, 15 * 1024 * 1024);
+
+  let position = body.indexOf(boundary);
+  while (position !== -1) {
+    const start = position + boundary.length + 2;
+    const next = body.indexOf(boundary, start);
+    if (next === -1) break;
+    const part = body.slice(start, next - 2);
+    const headerEnd = part.indexOf("\r\n\r\n");
+    if (headerEnd !== -1) {
+      const headers = part.slice(0, headerEnd).toString("utf8");
+      const filenameMatch = headers.match(/filename="([^"]*)"/i);
+      if (filenameMatch && filenameMatch[1]) {
+        return { filename: path.basename(filenameMatch[1]), buffer: part.slice(headerEnd + 4) };
+      }
+    }
+    position = next;
+  }
+  throw new Error("Не е избран фајл за качување.");
 }
 
 async function publishPromoSet(slug, publishAgain) {
@@ -808,13 +928,16 @@ async function publishPromoSet(slug, publishAgain) {
 
   const log = { publishedAt: new Date().toISOString(), slug, stories: results };
   await fs.writeFile(path.join(exportDir, "publish-log.json"), `${JSON.stringify(log, null, 2)}\n`, "utf8");
+  await setPromoStatus(slug, "Published");
   return { ok: true, ...log };
 }
 
 async function servePromoAsset(res, slug, filename) {
   try {
     const data = await fs.readFile(path.join(promoSlugDir(slug), filename));
-    res.writeHead(200, { "content-type": "image/png", "cache-control": "no-store, max-age=0" });
+    const extension = filename.split(".").pop().toLowerCase();
+    const contentTypes = { png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", webp: "image/webp", txt: "text/plain; charset=utf-8" };
+    res.writeHead(200, { "content-type": contentTypes[extension] || "application/octet-stream", "cache-control": "no-store, max-age=0" });
     res.end(data);
   } catch (error) {
     if (error.code === "ENOENT") return sendJson(res, 404, { ok: false, error: "Asset not found." });
@@ -857,10 +980,13 @@ function listPromoSets() {
     .map((entry) => {
       const slug = entry.name;
       let name = slug;
+      let status = "Generated";
       try {
-        name = readPromoSidecar(slug)?.business_name || slug;
+        const sidecar = readPromoSidecar(slug);
+        name = sidecar?.business_name || slug;
+        status = sidecar?.status || "Generated";
       } catch {}
-      return { slug, name, published: Boolean(readPromoPublishLog(slug)) };
+      return { slug, name, status, published: Boolean(readPromoPublishLog(slug)) };
     });
 }
 
@@ -870,7 +996,7 @@ function renderPromoHome(message = "") {
     <div class="panel" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
       <div>
         <strong>${escapeHtml(set.name)}</strong>
-        <div class="note">${escapeHtml(set.slug)} · ${set.published ? '<span class="ok">објавено</span>' : '<span class="warn">необјавено</span>'}</div>
+        <div class="note">${escapeHtml(set.slug)} · ${escapeHtml(set.status)} · ${set.published ? '<span class="ok">објавено</span>' : '<span class="warn">необјавено</span>'}</div>
       </div>
       <a class="button ghost" href="/promo/${escapeHtml(set.slug)}">Отвори</a>
     </div>`).join("");
@@ -901,8 +1027,15 @@ function renderPromoDetail(slug) {
 
   const exportDir = promoSlugDir(slug);
   const publishLog = readPromoPublishLog(slug);
-  const imageFiles = ["01-story-novo-vo-gostivar.png", "02-story-sto-nudi.png", "03-story-lokacija-kontakt.png", "04-feed-4x5.png", "05-facebook-1x1.png"]
-    .filter((file) => fss.existsSync(path.join(exportDir, file)));
+  const uploads = listPromoUploads(slug);
+  const postImages = sidecar.post_images || [];
+  const colors = { ...promoExport.THEMES.default, ...(sidecar.colors || {}) };
+  const exportFiles = [
+    "01-story-novo-vo-gostivar.png", "02-story-sto-nudi.png", "03-story-lokacija-kontakt.png",
+    "04-feed-4x5.png", "05-facebook-1x1.png",
+    "caption-facebook.txt", "caption-instagram.txt", "caption-telegram.txt"
+  ].filter((file) => fss.existsSync(path.join(exportDir, file)));
+  const imageFiles = exportFiles.filter((file) => file.endsWith(".png"));
   const bust = Date.now();
   const figures = imageFiles.map((file) => `
     <figure>
@@ -915,34 +1048,157 @@ function renderPromoDetail(slug) {
     .map((file) => `<h2>${escapeHtml(file.replace("caption-", "").replace(".txt", ""))}</h2><pre>${escapeHtml(fss.readFileSync(path.join(exportDir, file), "utf8"))}</pre>`)
     .join("");
 
+  let metaWarnings = [];
+  try {
+    const meta = JSON.parse(fss.readFileSync(path.join(exportDir, "export-meta.json"), "utf8"));
+    metaWarnings = meta.warnings || [];
+  } catch {}
+
   const field = (name, label, value) => `<label>${escapeHtml(label)}</label><input type="text" name="${name}" value="${escapeHtml(value || "")}">`;
+  const selectedAttr = (a, b) => (String(a) === String(b) ? " selected" : "");
+
+  const statusOptions = promoExport.PROMO_STATUSES
+    .map((status) => `<option value="${status}"${selectedAttr(sidecar.status, status)}>${status}</option>`).join("");
+  const themeOptions = Object.keys(promoExport.THEMES)
+    .map((theme) => `<option value="${theme}"${selectedAttr(sidecar.theme, theme)}>${theme}</option>`).join("");
+
+  const colorField = (key, label) => `
+    <div style="display:inline-block;margin-right:14px;">
+      <label>${escapeHtml(label)}</label>
+      <div style="display:flex;gap:6px;align-items:center;">
+        <input type="color" name="color_${key}" value="${escapeHtml(colors[key] || "#7285F4")}" style="width:44px;height:36px;padding:2px;border:1px solid #d7dbe6;border-radius:8px;">
+        <code style="font-size:12px;">${escapeHtml(colors[key] || "")}</code>
+      </div>
+    </div>`;
+
+  const imageSourceOptions = (config) => {
+    const options = [];
+    options.push(`<option value="featured"${selectedAttr(config.source, "featured")}>Главна слика од објавата</option>`);
+    postImages.forEach((url, index) => {
+      if (index === 0) return;
+      options.push(`<option value="post:${index}"${selectedAttr(config.source, `post:${index}`)}>Слика ${index + 1} од објавата</option>`);
+    });
+    for (const file of uploads) {
+      options.push(`<option value="upload:${escapeHtml(file)}"${selectedAttr(config.source, `upload:${file}`)}>Качена: ${escapeHtml(file)}</option>`);
+    }
+    options.push(`<option value="url"${selectedAttr(config.source, "url")}>URL (внеси долу)</option>`);
+    options.push(`<option value="none"${selectedAttr(config.source, "none")}>Без слика (бренд позадина)</option>`);
+    return options.join("");
+  };
+
+  const imageControls = promoExport.CARD_KEYS.map((cardKey) => {
+    const config = (sidecar.images || {})[cardKey] || { source: "featured", url: "", x: 50, y: 50, zoom: 1, overlay: 1, fit: "cover" };
+    return `
+    <details style="margin-bottom:10px;">
+      <summary style="cursor:pointer;font-weight:800;">${escapeHtml(PROMO_CARD_LABELS[cardKey])}</summary>
+      <div style="padding:10px 4px 4px;">
+        <label>Извор на слика</label>
+        <select name="img_${cardKey}_source">${imageSourceOptions(config)}</select>
+        <label>URL на слика (само ако изворот е URL)</label>
+        <input type="text" name="img_${cardKey}_url" value="${escapeHtml(config.url || "")}" placeholder="https://...">
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;">
+          <div><label>Позиција X % (0-100)</label><input type="number" name="img_${cardKey}_x" min="0" max="100" step="1" value="${Number(config.x) || 50}"></div>
+          <div><label>Позиција Y % (0-100)</label><input type="number" name="img_${cardKey}_y" min="0" max="100" step="1" value="${Number(config.y) || 50}"></div>
+          <div><label>Zoom (1-3)</label><input type="number" name="img_${cardKey}_zoom" min="1" max="3" step="0.05" value="${Number(config.zoom) || 1}"></div>
+          <div><label>Overlay јачина (0-1.5)</label><input type="number" name="img_${cardKey}_overlay" min="0" max="1.5" step="0.05" value="${Number(config.overlay) >= 0 ? Number(config.overlay) : 1}"></div>
+          <div><label>Пополнување</label><select name="img_${cardKey}_fit"><option value="cover"${selectedAttr(config.fit, "cover")}>cover (исечи)</option><option value="contain"${selectedAttr(config.fit, "contain")}>contain (цела слика)</option></select></div>
+        </div>
+      </div>
+    </details>`;
+  }).join("");
+
+  const postImageThumbs = postImages.length
+    ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">${postImages.map((url, index) => `
+        <figure style="margin:0;width:92px;text-align:center;">
+          <img src="${escapeHtml(url)}" alt="" style="width:92px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e6e8ef;">
+          <figcaption class="note">${index === 0 ? "главна" : `слика ${index + 1}`}</figcaption>
+        </figure>`).join("")}</div>`
+    : `<div class="note">Објавата нема слики — користи URL или качи слика.</div>`;
+
+  const downloads = exportFiles.map((file) => `<a class="button ghost" style="margin:4px 6px 4px 0;" href="/promo-assets/${escapeHtml(slug)}/${escapeHtml(file)}" download>${escapeHtml(file)}</a>`).join("");
 
   return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${escapeHtml(sidecar.business_name || slug)} · GPress Promo</title><style>${PROMO_PAGE_CSS}</style></head>
 <body><div class="wrap">
   <a class="back" href="/promo">← сите промо сетови</a>
   <h1>${escapeHtml(sidecar.business_name || slug)}</h1>
-  <div class="sub">${escapeHtml(sidecar.article_url || "")}</div>
+  <div class="sub">${escapeHtml(sidecar.article_url || "")} · статус: <strong>${escapeHtml(sidecar.status || "Generated")}</strong></div>
   ${publishLog ? `<div class="panel"><span class="ok">Објавено на Instagram: ${escapeHtml(publishLog.publishedAt)}</span></div>` : ""}
+  ${metaWarnings.length ? `<div class="panel"><span class="warn">Предупредувања од последното генерирање:</span><ul>${metaWarnings.map((w) => `<li class="note">${escapeHtml(w)}</li>`).join("")}</ul></div>` : ""}
 
   <h2>Преглед на картичките</h2>
   <div class="cards">${figures}</div>
 
-  <h2>Измени податоци</h2>
+  <h2>Уреди го сетот</h2>
   <div class="panel">
     <form method="post" action="/promo/${escapeHtml(slug)}/save">
-      ${field("business_name", "Име на бизнис / наслов", sidecar.business_name)}
-      <label>Краток опис</label><textarea name="short_intro">${escapeHtml(sidecar.short_intro || "")}</textarea>
+      <h2 style="margin-top:0;">Текстови</h2>
+      ${field("badge_text", "Беџ текст (default: Промотивно)", sidecar.badge_text)}
+      ${field("story1_heading", "Story 1 наслов (default: Ново во Гостивар)", sidecar.story1_heading)}
+      ${field("business_name", "Име на бизнис / клиент", sidecar.business_name)}
+      <label>Story 1 краток опис</label><textarea name="story1_description">${escapeHtml(sidecar.story1_description || "")}</textarea>
+      ${field("story2_heading", "Story 2 наслов (default: Што нуди?)", sidecar.story2_heading)}
       <label>Понуда (една ставка по ред, 3-5 ставки)</label><textarea name="offer_items">${escapeHtml((sidecar.offer_items || []).join("\n"))}</textarea>
+      ${field("story3_heading", "Story 3 наслов (default: Локација и контакт)", sidecar.story3_heading)}
       ${field("address", "Адреса", sidecar.address)}
       ${field("working_hours", "Работно време", sidecar.working_hours)}
       ${field("phone", "Телефон", sidecar.phone)}
       ${field("instagram", "Instagram", sidecar.instagram)}
       ${field("facebook", "Facebook", sidecar.facebook)}
-      ${field("hero_image", "Главна фотографија (URL)", (sidecar.selected_images || [])[0])}
+
+      <h2>Тема и бои</h2>
+      <label>Preset тема</label>
+      <select name="theme">${themeOptions}</select>
+      <div class="note" style="margin:6px 0 10px;">Изберi „custom" за рачните бои долу да важат; со preset тема боите доаѓаат од темата.</div>
+      <div>
+        ${colorField("primary", "Primary")}
+        ${colorField("secondary", "Secondary")}
+        ${colorField("accent", "Accent")}
+        ${colorField("overlay", "Overlay")}
+        ${colorField("badge", "Badge")}
+      </div>
+
+      <h2>Слики по картичка</h2>
+      <div class="note" style="margin-bottom:8px;">Слики во објавата:</div>
+      ${postImageThumbs}
+      <div style="margin-top:12px;">${imageControls}</div>
+
+      <h2>Статус</h2>
+      <select name="status">${statusOptions}</select>
+
       <div class="row-actions">
         <button class="button dark" type="submit">Зачувај и регенерирај</button>
         <span class="note">Регенерирањето ги преправа сликите — сè уште ништо не се објавува.</span>
       </div>
+    </form>
+  </div>
+
+  <h2>Качи нова слика</h2>
+  <div class="panel">
+    <form method="post" action="/promo/${escapeHtml(slug)}/upload" enctype="multipart/form-data">
+      <input type="file" name="file" accept=".png,.jpg,.jpeg,.webp" required>
+      <div class="row-actions">
+        <button class="button ghost" type="submit">Качи</button>
+        <span class="note">По качувањето, сликата се појавува во „Извор на слика" за секоја картичка.</span>
+      </div>
+    </form>
+    ${uploads.length ? `<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">${uploads.map((file) => `
+      <figure style="margin:0;width:92px;text-align:center;">
+        <img src="/promo-assets/${escapeHtml(slug)}/uploads/${escapeHtml(file)}" alt="" style="width:92px;height:64px;object-fit:cover;border-radius:6px;border:1px solid #e6e8ef;">
+        <figcaption class="note">${escapeHtml(file)}</figcaption>
+      </figure>`).join("")}</div>` : ""}
+  </div>
+
+  <h2>Download / Export</h2>
+  <div class="panel">
+    ${downloads || '<span class="note">Уште нема генерирани фајлови.</span>'}
+    <div class="note" style="margin-top:8px;">Фолдер на серверот: exports/promo/${escapeHtml(slug)}/</div>
+  </div>
+
+  <h2>Одобрување</h2>
+  <div class="panel">
+    <form method="post" action="/promo/${escapeHtml(slug)}/status" style="display:inline;">
+      <input type="hidden" name="status" value="Approved">
+      <button class="button ghost" type="submit">Одобри (без објава)</button>
     </form>
   </div>
 

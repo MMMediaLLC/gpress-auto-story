@@ -29,21 +29,47 @@ function escapeHtml(input) {
     .replace(/'/g, "&#039;");
 }
 
-function cssUrl(input) {
-  return String(input || "").replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+function hexToRgba(hex, alpha) {
+  const clean = String(hex || "#000000").replace("#", "");
+  const value = clean.length === 3
+    ? clean.split("").map((c) => c + c).join("")
+    : clean.padEnd(6, "0").slice(0, 6);
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  const a = Math.min(1, Math.max(0, alpha));
+  return `rgba(${r},${g},${b},${a.toFixed(3)})`;
 }
 
-function baseHead(widthPx, heightPx, extraCss) {
+function bgLayer(img) {
+  if (!img || !img.src) return "";
+  return `<div class="bg"><img src="${escapeHtml(img.src)}" style="object-fit:${img.fit}; object-position:${img.x}% ${img.y}%; transform: scale(${img.zoom}); transform-origin:${img.x}% ${img.y}%;" alt=""></div>`;
+}
+
+function heroShade(colors, strength) {
+  const o = colors.overlay;
+  return `background: linear-gradient(180deg, ${hexToRgba(o, 0.42 * strength)} 0%, ${hexToRgba(o, 0.05 * strength)} 28%, ${hexToRgba(o, 0)} 40%), linear-gradient(180deg, ${hexToRgba(o, 0)} 38%, ${hexToRgba(o, Math.min(0.98, 0.55 * strength))} 54%, ${hexToRgba(o, Math.min(0.98, 0.86 * strength))} 68%, ${hexToRgba(o, Math.min(0.99, 0.98 * strength))} 100%);`;
+}
+
+function flatShade(colors, strength) {
+  const o = colors.overlay;
+  return `background: linear-gradient(180deg, ${hexToRgba(o, Math.min(0.97, 0.74 * strength))} 0%, ${hexToRgba(o, Math.min(0.97, 0.82 * strength))} 45%, ${hexToRgba(o, Math.min(0.99, 0.95 * strength))} 100%);`;
+}
+
+function baseHead(widthPx, heightPx, colors, extraCss) {
   return `<!doctype html><html lang="mk"><head><meta charset="utf-8"><style>
 ${fontCss()}
 * { box-sizing: border-box; }
 body { margin: 0; font-family: ${BRAND.typography.fontFamily}; }
-.card { width: ${widthPx}px; height: ${heightPx}px; position: relative; overflow: hidden; background: linear-gradient(160deg, ${BRAND.darkColor} 0%, ${BRAND.darkColorSoft} 58%, ${BRAND.darkColor} 100%); color: #fff; }
-.badge { display: inline-flex; align-items: center; min-height: 19px; padding: 5px 9px; border-radius: 5px; background: ${BRAND.primaryColor}; color: #fff; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; }
+.card { width: ${widthPx}px; height: ${heightPx}px; position: relative; overflow: hidden; background: linear-gradient(160deg, ${colors.overlay} 0%, ${colors.secondary} 58%, ${colors.overlay} 100%); color: #fff; }
+.bg { position: absolute; inset: 0; overflow: hidden; }
+.bg img { width: 100%; height: 100%; display: block; }
+.shade { position: absolute; inset: 0; }
+.badge { display: inline-flex; align-items: center; min-height: 19px; padding: 5px 9px; border-radius: 5px; background: ${colors.badge}; color: #fff; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; }
 .logo { position: absolute; top: 16px; right: 18px; width: 105px; z-index: 3; filter: drop-shadow(0 4px 10px rgba(0,0,0,.25)); }
 .footer { position: absolute; left: 42px; right: 42px; bottom: 24px; z-index: 3; display: flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 700; color: rgba(255,255,255,.64); }
-.footer strong { color: ${BRAND.primaryColor}; font-weight: 900; }
-.dot { width: 4px; height: 4px; border-radius: 999px; background: ${BRAND.primaryColor}; }
+.footer strong { color: ${colors.accent}; font-weight: 900; }
+.dot { width: 4px; height: 4px; border-radius: 999px; background: ${colors.accent}; }
 ${extraCss}
 </style></head><body>`;
 }
@@ -52,57 +78,65 @@ ${extraCss}
 // so px values here are half of the final output dimensions.
 
 function story1Html(data) {
-  const bg = data.heroImage
-    ? `background-image: linear-gradient(180deg, rgba(6,10,22,.42) 0%, rgba(6,10,22,.62) 46%, rgba(5,9,18,.94) 78%, rgba(5,9,18,.99) 100%), url('${cssUrl(data.heroImage)}'); background-size: cover; background-position: center;`
-    : "";
-  return `${baseHead(540, 960, `
-.card.hero { ${bg} }
+  const colors = data.colors;
+  const img = data.cards.story1;
+  return `${baseHead(540, 960, colors, `
+.shade { ${img.src ? heroShade(colors, img.overlay) : ""} }
 .top { position: absolute; top: 118px; left: 42px; z-index: 3; }
 .content { position: absolute; left: 42px; right: 42px; bottom: 130px; z-index: 3; }
-.kicker { color: ${BRAND.primaryColor}; font-size: 19px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 16px; }
+.kicker { color: ${colors.accent}; font-size: 19px; font-weight: 900; letter-spacing: 2.5px; text-transform: uppercase; margin-bottom: 16px; }
 h1 { margin: 0 0 18px; font-size: ${data.businessName.length <= 26 ? 42 : 34}px; line-height: 1.1; font-weight: 900; text-wrap: balance; text-shadow: 0 2px 20px rgba(0,0,0,.4); }
 .intro { max-width: 420px; font-size: 19px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,.85); }
 `)}
-<main class="card hero">
+<main class="card">
+  ${bgLayer(img)}
+  <div class="shade"></div>
   ${data.logo ? `<img class="logo" src="${data.logo}" alt="">` : ""}
-  <div class="top"><span class="badge">${escapeHtml(BRAND.promoLabel)}</span></div>
+  <div class="top"><span class="badge">${escapeHtml(data.badgeText)}</span></div>
   <section class="content">
-    <div class="kicker">Ново во Гостивар</div>
+    <div class="kicker">${escapeHtml(data.story1Heading)}</div>
     <h1>${escapeHtml(data.businessName)}</h1>
     ${data.shortIntro ? `<p class="intro">${escapeHtml(data.shortIntro)}</p>` : ""}
   </section>
-  <footer class="footer"><span class="dot"></span><span><strong>${escapeHtml(BRAND.footerText)}</strong></span></footer>
+  <footer class="footer"><span class="dot"></span><span><strong>Gostivarpress.mk</strong></span></footer>
 </main></body></html>`;
 }
 
 function story2Html(data) {
+  const colors = data.colors;
+  const img = data.cards.story2;
   const items = data.offerItems
     .map((item) => `<li><span class="tick"></span><span>${escapeHtml(item)}</span></li>`)
     .join("");
-  return `${baseHead(540, 960, `
+  return `${baseHead(540, 960, colors, `
+.shade { ${img.src ? flatShade(colors, img.overlay) : ""} }
 .top { position: absolute; top: 118px; left: 42px; z-index: 3; }
 .content { position: absolute; left: 42px; right: 42px; top: 200px; bottom: 130px; z-index: 3; display: flex; flex-direction: column; justify-content: center; }
 h1 { margin: 0 0 34px; font-size: 44px; font-weight: 900; }
-h1 em { font-style: normal; color: ${BRAND.primaryColor}; }
+h1 em { font-style: normal; color: ${colors.accent}; }
 ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 20px; }
 li { display: flex; align-items: flex-start; gap: 14px; font-size: 21px; line-height: 1.3; font-weight: 700; color: rgba(255,255,255,.92); }
-.tick { flex: 0 0 auto; width: 26px; height: 26px; margin-top: 1px; border-radius: 8px; background: ${BRAND.primaryColor}; position: relative; }
+.tick { flex: 0 0 auto; width: 26px; height: 26px; margin-top: 1px; border-radius: 8px; background: ${colors.primary}; position: relative; }
 .tick::after { content: ""; position: absolute; left: 9px; top: 4px; width: 7px; height: 12px; border: solid #fff; border-width: 0 3.5px 3.5px 0; transform: rotate(40deg); }
-.glow { position: absolute; right: -140px; top: 220px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, rgba(114,133,244,.22), rgba(114,133,244,0) 70%); }
+.glow { position: absolute; right: -140px; top: 220px; width: 380px; height: 380px; border-radius: 50%; background: radial-gradient(circle, ${hexToRgba(colors.primary, 0.22)}, ${hexToRgba(colors.primary, 0)} 70%); }
 `)}
 <main class="card">
+  ${bgLayer(img)}
+  <div class="shade"></div>
   <div class="glow"></div>
   ${data.logo ? `<img class="logo" src="${data.logo}" alt="">` : ""}
-  <div class="top"><span class="badge">${escapeHtml(BRAND.promoLabel)}</span></div>
+  <div class="top"><span class="badge">${escapeHtml(data.badgeText)}</span></div>
   <section class="content">
-    <h1>Што <em>нуди</em>?</h1>
+    <h1><em>${escapeHtml(data.story2Heading)}</em></h1>
     <ul>${items}</ul>
   </section>
-  <footer class="footer"><span class="dot"></span><span>Повеќе на <strong>${escapeHtml(BRAND.footerText)}</strong></span></footer>
+  <footer class="footer"><span class="dot"></span><span>Повеќе на <strong>Gostivarpress.mk</strong></span></footer>
 </main></body></html>`;
 }
 
 function story3Html(data) {
+  const colors = data.colors;
+  const img = data.cards.story3;
   const rows = [
     ["Бизнис", data.businessName],
     ["Адреса", data.address],
@@ -120,73 +154,76 @@ function story3Html(data) {
       </div>`
     )
     .join("");
-  return `${baseHead(540, 960, `
+  return `${baseHead(540, 960, colors, `
+.shade { ${img.src ? flatShade(colors, img.overlay) : ""} }
 .top { position: absolute; top: 118px; left: 42px; z-index: 3; }
 .content { position: absolute; left: 42px; right: 42px; top: 200px; bottom: 130px; z-index: 3; display: flex; flex-direction: column; justify-content: center; }
 h1 { margin: 0 0 32px; font-size: 38px; font-weight: 900; }
-h1 em { font-style: normal; color: ${BRAND.primaryColor}; }
+h1 em { font-style: normal; color: ${colors.accent}; }
 .rows { display: flex; flex-direction: column; gap: 18px; }
-.row { border-left: 4px solid ${BRAND.primaryColor}; padding-left: 16px; }
-.label { font-size: 13px; font-weight: 900; letter-spacing: 1.6px; text-transform: uppercase; color: ${BRAND.primaryColor}; margin-bottom: 4px; }
+.row { border-left: 4px solid ${colors.primary}; padding-left: 16px; }
+.label { font-size: 13px; font-weight: 900; letter-spacing: 1.6px; text-transform: uppercase; color: ${colors.accent}; margin-bottom: 4px; }
 .value { font-size: 21px; line-height: 1.3; font-weight: 700; color: rgba(255,255,255,.92); overflow-wrap: anywhere; }
 `)}
 <main class="card">
+  ${bgLayer(img)}
+  <div class="shade"></div>
   ${data.logo ? `<img class="logo" src="${data.logo}" alt="">` : ""}
-  <div class="top"><span class="badge">${escapeHtml(BRAND.promoLabel)}</span></div>
+  <div class="top"><span class="badge">${escapeHtml(data.badgeText)}</span></div>
   <section class="content">
-    <h1>Локација и <em>контакт</em></h1>
+    <h1><em>${escapeHtml(data.story3Heading)}</em></h1>
     <div class="rows">${rows}</div>
   </section>
-  <footer class="footer"><span class="dot"></span><span>Целата објава на <strong>${escapeHtml(BRAND.footerText)}</strong></span></footer>
+  <footer class="footer"><span class="dot"></span><span>Целата објава на <strong>Gostivarpress.mk</strong></span></footer>
 </main></body></html>`;
 }
 
 function feedCardHtml(data) {
-  const photo = data.heroImage
-    ? `<div class="photo" style="background-image:url('${cssUrl(data.heroImage)}')"></div>`
-    : `<div class="photo fallback"></div>`;
-  return `${baseHead(540, 675, `
-.photo { position: absolute; inset: 0 0 auto 0; height: 372px; background-size: cover; background-position: center; }
-.photo.fallback { background: linear-gradient(150deg, ${BRAND.darkColorSoft}, ${BRAND.primaryColor}); }
-.photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(5,9,18,0) 55%, ${BRAND.darkColor} 100%); }
+  const colors = data.colors;
+  const img = data.cards.feed;
+  return `${baseHead(540, 675, colors, `
+.photo { position: absolute; inset: 0 0 auto 0; height: 372px; overflow: hidden; }
+.photo img { width: 100%; height: 100%; display: block; }
+.photo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, ${hexToRgba(colors.overlay, 0)} 55%, ${colors.overlay} 100%); }
 .panel { position: absolute; left: 34px; right: 34px; bottom: 58px; z-index: 3; }
 h1 { margin: 12px 0 10px; font-size: 30px; line-height: 1.14; font-weight: 900; text-wrap: balance; }
 .intro { margin: 0; font-size: 16px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,.8); }
 .logo { top: 14px; right: 16px; width: 96px; }
 `)}
 <main class="card">
-  ${photo}
+  ${img.src ? `<div class="photo"><img src="${escapeHtml(img.src)}" style="object-fit:${img.fit}; object-position:${img.x}% ${img.y}%; transform: scale(${img.zoom}); transform-origin:${img.x}% ${img.y}%;" alt=""></div>` : ""}
   ${data.logo ? `<img class="logo" src="${data.logo}" alt="">` : ""}
   <section class="panel">
-    <span class="badge">${escapeHtml(BRAND.promoLabel)}</span>
-    <h1>${escapeHtml(data.title)}</h1>
+    <span class="badge">${escapeHtml(data.badgeText)}</span>
+    <h1>${escapeHtml(data.businessName)}</h1>
     ${data.shortIntro ? `<p class="intro">${escapeHtml(data.shortIntro)}</p>` : ""}
   </section>
-  <footer class="footer"><span class="dot"></span><span><strong>${escapeHtml(BRAND.footerText)}</strong></span></footer>
+  <footer class="footer"><span class="dot"></span><span><strong>Gostivarpress.mk</strong></span></footer>
 </main></body></html>`;
 }
 
 function squareCardHtml(data) {
-  const bg = data.heroImage
-    ? `background-image: linear-gradient(180deg, rgba(6,10,22,.5) 0%, rgba(6,10,22,.7) 45%, rgba(5,9,18,.95) 100%), url('${cssUrl(data.heroImage)}'); background-size: cover; background-position: center;`
-    : "";
-  return `${baseHead(540, 540, `
-.card.hero { ${bg} }
+  const colors = data.colors;
+  const img = data.cards.square;
+  return `${baseHead(540, 540, colors, `
+.shade { ${img.src ? heroShade(colors, img.overlay) : ""} }
 .content { position: absolute; left: 36px; right: 36px; bottom: 66px; z-index: 3; }
 h1 { margin: 12px 0 10px; font-size: 30px; line-height: 1.14; font-weight: 900; text-wrap: balance; }
 .intro { margin: 0 0 18px; font-size: 15px; line-height: 1.4; font-weight: 700; color: rgba(255,255,255,.82); }
-.cta { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 16px; border-radius: 999px; background: ${BRAND.primaryColor}; color: #fff; font-size: 14px; font-weight: 900; }
+.cta { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 0 16px; border-radius: 999px; background: ${colors.primary}; color: #fff; font-size: 14px; font-weight: 900; }
 .logo { top: 14px; right: 16px; width: 96px; }
 `)}
-<main class="card hero">
+<main class="card">
+  ${bgLayer(img)}
+  <div class="shade"></div>
   ${data.logo ? `<img class="logo" src="${data.logo}" alt="">` : ""}
   <section class="content">
-    <span class="badge">${escapeHtml(BRAND.promoLabel)}</span>
-    <h1>${escapeHtml(data.title)}</h1>
+    <span class="badge">${escapeHtml(data.badgeText)}</span>
+    <h1>${escapeHtml(data.businessName)}</h1>
     ${data.shortIntro ? `<p class="intro">${escapeHtml(data.shortIntro)}</p>` : ""}
-    <span class="cta">Дознај повеќе → ${escapeHtml(BRAND.footerText)}</span>
+    <span class="cta">Дознај повеќе → Gostivarpress.mk</span>
   </section>
-  <footer class="footer"><span class="dot"></span><span><strong>${escapeHtml(BRAND.footerText)}</strong></span></footer>
+  <footer class="footer"><span class="dot"></span><span><strong>Gostivarpress.mk</strong></span></footer>
 </main></body></html>`;
 }
 
